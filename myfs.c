@@ -439,4 +439,3 @@ static moduledata_t myfs_mod = {
 
 DECLARE_MODULE(myfs, myfs_mod, SI_SUB_VFS, SI_ORDER_ANY);
 MODULE_VERSION(myfs, MYFS_VERSION);
-MODULE_DEPEND(myfs, opensolaris, 1, 1, 1);
