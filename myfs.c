@@ -108,6 +108,7 @@ static int myfs_mkdir(struct vop_mkdir_args *ap);
 static int myfs_rmdir(struct vop_rmdir_args *ap);
 static int myfs_inactive(struct vop_inactive_args *ap);
 static int myfs_truncate(struct vop_truncate_args *ap);
+static int myfs_fsync(struct vop_fsync_args *ap);
 
 /* Vnode operations vector */
 static struct vop_ops myfs_vops = {
@@ -136,6 +137,7 @@ static struct vop_ops myfs_vops = {
     .vop_rmdir = myfs_rmdir,
     .vop_inactive = myfs_inactive,
     .vop_truncate = myfs_truncate,
+    .vop_fsync = myfs_fsync,
 };
 
 /* Mount function */
@@ -392,6 +394,48 @@ myfs_truncate(struct vop_truncate_args *ap)
 {
     printf("MYFS: Truncate operation\n");
     return (ENOSYS);
+}
+
+/* fsync function */
+static int
+myfs_fsync(struct vop_fsync_args *ap)
+{
+    struct vnode *vp = ap->a_vp;
+    int waitfor = ap->a_waitfor;
+    struct thread *td = ap->a_td;
+
+    printf("MYFS: Fsync operation on vnode %p, waitfor: %d\n", vp, waitfor);
+
+    /*
+     * waitfor can be:
+     * MNT_WAIT - sync all data and metadata
+     * MNT_NOWAIT - sync only what can be done without blocking
+     */
+
+    /* 
+     * For a real filesystem, you would:
+     * 1. Flush any cached data to persistent storage
+     * 2. Write metadata updates (timestamps, size changes, etc.)
+     * 3. Handle the waitfor parameter appropriately
+     */
+
+    /* Example implementation for a simple filesystem */
+    if (waitfor == MNT_WAIT) {
+        /* 
+         * Wait for all I/O to complete
+         * This might involve flushing buffers, waiting for disk writes, etc.
+         */
+        printf("MYFS: Waiting for all data to sync\n");
+    } else {
+        /* MNT_NOWAIT - start sync but don't wait for completion */
+        printf("MYFS: Starting async sync\n");
+    }
+
+    /* 
+     * Return 0 on success, or error code on failure
+     * Common errors: EIO (I/O error), EROFS (read-only filesystem)
+     */
+    return (0);
 }
 
 /* Module event handler */
