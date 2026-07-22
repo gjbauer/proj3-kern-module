@@ -23,32 +23,15 @@
 #include <sys/stat.h>
 #include <sys/dirent.h>
 
+#include "superblock.h"
+
 MALLOC_DECLARE(M_MYFS);
 
 /* Filesystem name */
 #define MYFS_NAME	"myfs"
 
-/* Superblock magic number - fixed hex value */
-#define MYFS_MAGIC	0x4D594653  /* "MYFS" in ASCII */
-
 /* Block size */
 #define MYFS_BLOCK_SIZE	4096
-
-/* Root inode number */
-#define MYFS_ROOT_INO	2
-
-/*
- * On-disk superblock structure
- */
-struct myfs_superblock {
-	uint32_t	sb_magic;	/* Magic number */
-	uint32_t	sb_block_size;	/* Block size in bytes */
-	uint32_t	sb_total_blocks;/* Total blocks */
-	uint32_t	sb_free_blocks;	/* Free blocks */
-	uint32_t	sb_root_ino;	/* Root directory inode */
-	uint32_t	sb_inode_count;	/* Total inodes */
-	/* Add more fields as needed */
-};
 
 /*
  * On-disk inode structure
@@ -75,7 +58,7 @@ struct myfs_inode {
 struct myfs_mount {
 	struct mount	*mnt;			/* Back pointer to mount */
 	struct vnode	*mnt_rootvp;		/* Root vnode */
-	struct myfs_superblock mnt_sb;		/* Superblock copy */
+	Superblock mnt_sb;		/* Superblock copy */
 	dev_t		mnt_dev;		/* Device mounted */
 	struct g_consumer *mnt_cp;		/* GEOM consumer */
 	/* Add more fields as needed */

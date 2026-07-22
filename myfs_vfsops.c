@@ -5,6 +5,8 @@
  */
 
 #include "myfs.h"
+#include "config.h"
+#include "superblock.h"
 
 MALLOC_DEFINE(M_MYFS, "myfs", "MyFS filesystem");
 
@@ -15,6 +17,27 @@ myfs_vfs_mount(struct mount *mp)
 	struct myfs_mount *mntdata;
 	struct vnode *rootvp;
 	int error;
+	
+	struct vnode *covered_vp;
+	
+	struct buf *bp;
+
+	covered_vp = mp->mnt_vnodecovered; // Get the mounted-on vnode
+	
+	error = bread(covered_vp, 0, BLOCK_SIZE, NOCRED, &bp);
+	if (error != 0) {
+		// Handle error (e.g., EIO)
+		brelse(bp);
+		return error;
+	}
+
+	// Access the raw data
+	block_type_t *block_type =(block_type_t*) bp->b_data;
+	
+	if (BLOCK_TYPE_SUPER != *block_type)
+		return (EIO);
+	
+	Superblock *sb = (Superblock*)( block_type + 1 );
 
 	/* Validate mount point */
 	if (mp->mnt_flag & MNT_UPDATE)
@@ -24,18 +47,15 @@ myfs_vfs_mount(struct mount *mp)
 	mntdata = malloc(sizeof(*mntdata), M_MYFS, M_WAITOK | M_ZERO);
 	mntdata->mnt = mp;
 
-	/* Initialize superblock (read from disk in real implementation) */
-	mntdata->mnt_sb.sb_magic = MYFS_MAGIC;
-	mntdata->mnt_sb.sb_block_size = MYFS_BLOCK_SIZE;
-	mntdata->mnt_sb.sb_root_ino = MYFS_ROOT_INO;
+	memcpy(&mntdata->mnt_sb, sb, USABLE_BLOCK_SIZE);
 
 	mp->mnt_data = mntdata;
-	mp->mnt_stat.f_fsid.val[0] = (int32_t)MYFS_MAGIC;
+	mp->mnt_stat.f_fsid.val[0] = (int32_t)sb->magic_number;
 	mp->mnt_stat.f_fsid.val[1] = 0;
 	mp->mnt_flag |= MNT_LOCAL;
 
 	/* Get root vnode */
-	error = VFS_VGET(mp, MYFS_ROOT_INO, LK_EXCLUSIVE, &rootvp);
+	error = VFS_VGET(mp, sb->root_inode, LK_EXCLUSIVE, &rootvp);
 	if (error) {
 		free(mntdata, M_MYFS);
 		return (error);
@@ -47,10 +67,12 @@ myfs_vfs_mount(struct mount *mp)
 	vput(rootvp);
 
 	MNT_ILOCK(mp);
-	mp->mnt_stat.f_bsize = MYFS_BLOCK_SIZE;
-	mp->mnt_stat.f_iosize = MYFS_BLOCK_SIZE;
+	mp->mnt_stat.f_bsize = BLOCK_SIZE;
+	mp->mnt_stat.f_iosize = USABLE_BLOCK_SIZE;
 	MNT_IUNLOCK(mp);
 
+	// Always release the buffer when done!
+	brelse(bp);
 	printf("myfs: mounted successfully\n");
 	return (0);
 }
@@ -92,13 +114,11 @@ myfs_vfs_statfs(struct mount *mp, struct statfs *sbp)
 {
 	struct myfs_mount *mntdata = mp->mnt_data;
 
-	sbp->f_bsize = MYFS_BLOCK_SIZE;
-	sbp->f_iosize = MYFS_BLOCK_SIZE;
-	sbp->f_blocks = mntdata->mnt_sb.sb_total_blocks;
-	sbp->f_bfree = mntdata->mnt_sb.sb_free_blocks;
-	sbp->f_bavail = mntdata->mnt_sb.sb_free_blocks;
-	sbp->f_files = mntdata->mnt_sb.sb_inode_count;
-	sbp->f_ffree = mntdata->mnt_sb.sb_free_blocks; /* Approximate */
+	sbp->f_bsize = BLOCK_SIZE;
+	sbp->f_iosize = USABLE_BLOCK_SIZE;
+	sbp->f_blocks = mntdata->mnt_sb.total_blocks;
+	sbp->f_bfree = mntdata->mnt_sb.free_blocks;
+	sbp->f_bavail = mntdata->mnt_sb.free_blocks;
 
 	return (0);
 }

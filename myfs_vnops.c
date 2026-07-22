@@ -153,3 +153,4 @@ struct vop_vector myfs_vnodeops = {
 	.vop_readdir =		myfs_vn_readdir,
 	.vop_strategy =		myfs_vn_strategy,
 };
+VFS_VOP_VECTOR_REGISTER(myfs_vnodeops);
