@@ -1,7 +1,6 @@
 #ifndef BTR_H
 #define BTR_H
-#include <stdint.h>
-#include <stdbool.h>
+#include "myfs.h"
 #include "config.h"
 #include "disk.h"
 #include "types.h"

@@ -1,7 +1,11 @@
 #ifndef LOCK_H
 #define LOCK_H
-#include <pthread.h>
+#include "myfs.h"
 
-pthread_mutex_t *get_lock();
+struct mtx *get_lock(void);
+
+void lock(struct mtx *mtx);
+
+void unlock(struct mtx *mtx);
 
 #endif

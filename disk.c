@@ -1,10 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/mman.h>
-#include <assert.h>
-#include <string.h>
+#include "myfs.h"
 
 #include "disk.h"
 #include "config.h"
@@ -17,27 +11,11 @@
  * Open and memory-map a disk image file for filesystem operations
  * Creates a DiskInterface structure for accessing the disk
  */
-DiskInterface* disk_open(const char* filename)
+DiskInterface* disk_open(struct mount *mp)
 {
-	DiskInterface *disk = (DiskInterface*)malloc(sizeof(struct DiskInterface));
-	struct stat fs_info;
-	
-	// Get file size and other metadata
-	if (stat(filename, &fs_info) != 0) {
-		fprintf(stderr, "Failed to stat filesystem!!");
-		return NULL;
-	}
-	
-	// Open the disk image file for read/write access
-	disk->disk_file = open(filename, O_RDWR, 0644);
-	assert(disk->disk_file != -1);
-	
-	// Memory-map the entire file for direct access
-	disk->disk_base = mmap(0, fs_info.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, disk->disk_file, 0);
-	assert(disk->disk_base != MAP_FAILED);
-	
-	// Calculate total number of blocks based on file size
-	disk->total_blocks = fs_info.st_size / BLOCK_SIZE;
+	DiskInterface *disk = (DiskInterface*)malloc(sizeof(struct DiskInterface), M_MYFS, M_WAITOK);
+	disk->mp = mp;
+	disk->vp = mp->mnt_vnodecovered;
 	
 	return disk;
 }
@@ -48,9 +26,7 @@ DiskInterface* disk_open(const char* filename)
  */
 void disk_close(DiskInterface* disk)
 {
-	munmap(disk->disk_base, disk->total_blocks * BLOCK_SIZE);
-	close(disk->disk_file);
-	free(disk);
+	free(disk, M_MYFS);
 }
 
 /**
@@ -60,7 +36,9 @@ void disk_close(DiskInterface* disk)
 void*
 disk_get_block(DiskInterface* disk, int pnum)
 {
-	return disk->disk_base + BLOCK_SIZE * pnum;
+	struct buf *bp;
+	bread(disk->vp, 0, BLOCK_SIZE, NOCRED, &bp);
+	return bp->b_data;
 }
 
 /**
@@ -85,7 +63,7 @@ alloc_page(DiskInterface* disk, cache *cache)
 		if (!bitmap_get(pbm, ii - ((pbmn - 1) * USABLE_BLOCK_SIZE))) {  // Found a free block
 			if (bitmap_put(pbm, ii - ((pbmn - 1) * USABLE_BLOCK_SIZE), 1))  // Mark it as allocated
 			{
-				fprintf(stderr, "ERROR: Could not allocate page!!\n");
+				FPRINTF("ERROR: Could not allocate page!!\n");
 				return 0;
 			}
             
@@ -94,16 +72,16 @@ alloc_page(DiskInterface* disk, cache *cache)
             superblock_write(disk, cache, &sb, false);
             
 			write_block(disk, cache, pbm, 0, pbmn );
-			pthread_mutex_lock(get_lock());
+			lock(get_lock());
 			disk_write_block(disk, pbmn, pbm);
-			pthread_mutex_unlock(get_lock());
+			unlock(get_lock());
             
 			//printf("+ alloc_page() -> %d\n", ii);
 			return ii;
 		}
 	}
 
-	fprintf(stderr, "ERROR: No free blocks available for allocation!\n");
+	FPRINTF("ERROR: No free blocks available for allocation!\n");
 	return 0;  // No free blocks available
 }
 
@@ -121,7 +99,7 @@ free_page(DiskInterface* disk, cache *cache, int pnum)
     
 	if (bitmap_put(pbm, pnum - ((pbmn - 1) * USABLE_BLOCK_SIZE), 0))  // Mark block as free
 	{
-		fprintf(stderr, "ERROR: Selected block could not be freed!\n");
+		FPRINTF("ERROR: Selected block could not be freed!\n");
 	}
 	//printf("+ free_page(%d)\n", pnum);
     
@@ -130,9 +108,9 @@ free_page(DiskInterface* disk, cache *cache, int pnum)
     superblock_write(disk, cache, &sb, false);
     
     write_block(disk, cache, pbm, 0, pbmn );
-    pthread_mutex_lock(get_lock());
+    lock(get_lock());
 	disk_write_block(disk, pbmn, pbm);
-	pthread_mutex_unlock(get_lock());
+	unlock(get_lock());
 }
 
 /**
@@ -149,6 +127,9 @@ int disk_read_block(DiskInterface* disk, uint64_t block_num, void* buffer)
 		rv = 0;
 	}
 	
+
+	struct buf *bp = incore(&disk->vp->v_bufobj, block_num);
+	brelse(bp);
 	return rv;
 }
 
@@ -177,8 +158,8 @@ int disk_format(DiskInterface* disk, cache *cache, const char* volume_name)
 {
     Superblock superblock;
 
-    if (superblock_initialize(disk, cache, volume_name)) fprintf(stderr, "ERROR: Volume name too long\n");
-    if (superblock_read(disk, cache, &superblock)) fprintf(stderr, "ERROR: Invalid superblock!\n");
+    if (superblock_initialize(disk, cache, volume_name)) FPRINTF("ERROR: Volume name too long\n");
+    if (superblock_read(disk, cache, &superblock)) FPRINTF("ERROR: Invalid superblock!\n");
     printf("Size of journal entry = %llu\n", sizeof(struct journal_entry_t));
     printf("Setting block types to bitmaps for bitmaps...\n");
     block_type_t *block_type;
@@ -199,7 +180,7 @@ int disk_format(DiskInterface* disk, cache *cache, const char* volume_name)
         block_type = (block_type_t*)get_block(disk, cache, 0, i);
         *block_type = BLOCK_TYPE_JOURNAL;
 	journal_entry_t *entry = (journal_entry_t*)(block_type + 1);
-	entry->type = UNINITIALIZED;
+	entry->type = TT_UNINITIALIZED;
     }
     printf("Allocating pages for superblock, bitmaps, and inode table...\n");
     alloc_page(disk, cache);

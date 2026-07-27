@@ -18,6 +18,12 @@ myfs_vfs_mount(struct mount *mp)
 	struct vnode *rootvp;
 	int error;
 	
+	set_disk(disk_open(mp));
+
+	DiskInterface *disk = get_disk();
+	
+	mtx_init(get_lock(), "global_nbtrfs_lock", NULL, MTX_DEF);
+
 	struct vnode *covered_vp;
 	
 	struct buf *bp;
@@ -35,9 +41,14 @@ myfs_vfs_mount(struct mount *mp)
 	block_type_t *block_type =(block_type_t*) bp->b_data;
 	
 	if (BLOCK_TYPE_SUPER != *block_type)
+	{
+		brelse(bp);
 		return (EIO);
+	}
 	
 	Superblock *sb = (Superblock*)( block_type + 1 );
+
+	disk->total_blocks = sb->total_blocks;
 
 	/* Validate mount point */
 	if (mp->mnt_flag & MNT_UPDATE)

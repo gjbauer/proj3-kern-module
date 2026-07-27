@@ -1,166 +1,37 @@
-#include <stdlib.h>
-#include <string.h>
-#ifdef __APPLE__
-#include <sys/sysctl.h>
-#else
-#include <sys/sysinfo.h>
-#endif
-#include <sys/param.h>
-#ifdef __linux__
-#include <bsd/stdlib.h>
-#endif
+#include "myfs.h"
 #include "disk.h"
 #include "types.h"
 #include "cache.h"
-#include "lock.h"
 
 void*
 get_block(DiskInterface* disk, cache *cache, uint64_t inum, uint64_t pnum)
 {
-#ifdef CACHE_DISABLED
-	return disk_get_block(disk, pnum);
-#else
-	// Check if block is already in cache using primary cache index
-	int rv = pci_lookup(cache->pci, pnum);
-	if (rv==-1) {
-		// Block not in cache - need to load it
-		
-		// If no free cache slots, evict LRU entry
-		if (cache->free_list==NULL) {
-			// Get least recently used non-pinned cache entry
-            LRU_List *curr = cache->lru->prev;
-            while (cache->cache[curr->index].pin_count) curr = curr->prev;
-            pthread_mutex_lock(&cache->cache[curr->index].lock);
-			int cache_index = lru_pop(cache, &curr);
-			
-			// If evicted entry is dirty, write it back to disk
-			if (cache->cache[cache_index].dirty_bit)
-			{
-				block_type_t *block_type = (block_type_t*)cache->cache[cache_index].page_data;
-				// Write dirty data back to disk
-				pthread_mutex_lock(get_lock());
-				disk_write_block(disk, cache->cache[cache_index].block_number, cache->cache[cache_index].page_data);
-				pthread_mutex_unlock(get_lock());
-				free(cache->cache[cache_index].page_data);
-				// Remove from dirty list if it's a data block
-				if (*block_type==BLOCK_TYPE_DATA) dl_remove_block(cache->dirty_list, cache->cache[cache_index].inode_number, cache->cache[cache_index].block_number);
-				// Remove from global dirty list
-				gdl_pop(cache, &cache->cache[cache_index].gdl_pos);
-			}
-			// Remove old mapping from primary cache index
-			pci_delete(cache->pci, cache->cache[cache_index].block_number);
-			// Add evicted slot back to free list
-			cache->free_list = fl_push(cache->free_list, cache_index);
-		}
-		
-		// Get a free cache slot
-		int index = cache->free_list->index;
-		cache->free_list = fl_pop(cache->free_list);
-		
-		// Initialize the new cache entry
-		cache->cache[index].dirty_bit = false;
-		cache->cache[index].pin_count = 0;
-		cache->cache[index].block_number = pnum;
-		cache->cache[index].inode_number = inum;
-		cache->cache[index].page_data = malloc(BLOCK_SIZE);
-		
-		// Load block data from disk into cache
-		//printf("Copying page %llu into the cache!\n", pnum);
-		disk_read_block(disk, pnum, cache->cache[index].page_data);
-		
-		// Add to LRU list (most recently used)
-		cache->cache[index].lru_pos = lru_push(cache, index);
-		cache->lru = cache->cache[index].lru_pos;
-		
-		// Add mapping to primary cache index
-		pci_insert(cache->pci, pnum, index);
-		pthread_mutex_unlock(&cache->cache[index].lock);
-		return cache->cache[index].page_data;
-	} else {
-        // Block found in cache - move it to front of LRU list (most recently used)
-        int cache_index = lru_pop(cache, &cache->cache[rv].lru_pos);
-        cache->cache[rv].lru_pos = lru_push(cache, cache_index);
-        cache->lru = cache->cache[rv].lru_pos;
-
-		return cache->cache[rv].page_data;
-	}
-#endif
+	struct buf *bp;
+	
+	bread(disk->vp, 0, BLOCK_SIZE, NOCRED, &bp);
+	
+	return bp->b_data;
 }
 
 void
 write_block(DiskInterface* disk, cache *cache, void *buf, int64_t inum, uint64_t pnum)
 {
-	#ifndef CACHE_DISABLED
-	// Look up block in cache using primary cache index
-	int index = pci_lookup(cache->pci, pnum);
-	if (index==-1)
-	{
-		// Block not in cache - load it first
-		get_block(disk, cache, inum, pnum);
-		index = pci_lookup(cache->pci, pnum);
-	}
-	pthread_mutex_lock(&cache->cache[index].lock);
-	
-	// Get block type to determine if we need dirty list tracking
-	block_type_t *block_type = (block_type_t*)cache->cache[index].page_data;
-	
-    // Actually write the data to the cache
-	memcpy(cache->cache[index].page_data, buf, BLOCK_SIZE);
-	
-	if (!cache->cache[index].dirty_bit) {
-		cache->cache[index].dirty_bit = true;
-		
-		if (*block_type == BLOCK_TYPE_DATA) {
-			dl_insert(cache->dirty_list, inum, pnum);
-		}
-		
-		cache->gdl = gdl_push(cache, index);
-		cache->cache[index].gdl_pos = cache->gdl;
-	}
-	
-	// Add to per-inode dirty list if it's a data block
-	if (*block_type==BLOCK_TYPE_DATA) dl_insert(cache->dirty_list, inum, pnum);
-	
-	// Add to global dirty list for sync operations
-	cache->gdl = gdl_push(cache, index);
-	cache->cache[index].gdl_pos = cache->gdl;
-	pthread_mutex_unlock(&cache->cache[index].lock);
-	#endif
+
 }
 
 void increase_pin_count(DiskInterface* disk, cache *cache, uint64_t inum, uint64_t pnum)
 {
-#ifndef CACHE_DISABLED
-    int index = pci_lookup(cache->pci, pnum);
-    if (index==-1)
-    {
-        // Block not in cache - load it first
-        get_block(disk, cache, inum, pnum);
-        index = pci_lookup(cache->pci, pnum);
-    }
-    
-    cache->cache[index].pin_count++;
-#endif
 }
 
 void decrease_pin_count(DiskInterface* disk, cache *cache, uint64_t inum, uint64_t pnum)
 {
-#ifndef CACHE_DISABLED
-    int index = pci_lookup(cache->pci, pnum);
-    if (index==-1)
-    {
-        // Block not in cache - load it first
-        get_block(disk, cache, inum, pnum);
-        index = pci_lookup(cache->pci, pnum);
-    }
-    
-    if (cache->cache[index].pin_count > 0) cache->cache[index].pin_count--;
-#endif
+	struct buf *bp = incore(&disk->vp->v_bufobj, pnum);
+	brelse(bp);
 }
 
 void cache_fsync(DiskInterface* disk, cache *cache, uint64_t inum)
 {
-	#ifndef CACHE_DISABLED
+/*	#ifndef CACHE_DISABLED
 	// Look up all dirty blocks for this specific inode
 	DL_HM_LL *hmlist = dl_lookup(cache->dirty_list, inum);
 	DL_HM_LL *prev;
@@ -192,12 +63,12 @@ void cache_fsync(DiskInterface* disk, cache *cache, uint64_t inum)
 		// Remove entire inode entry from dirty list
 		dl_delete(cache->dirty_list, inum);
 	}
-	#endif
+	#endif*/
 }
 
 void cache_sync(DiskInterface* disk, cache *cache)
 {
-	#ifndef CACHE_DISABLED
+/*	#ifndef CACHE_DISABLED
 	// Sync all dirty blocks to disk using global dirty list
 	while (cache->gdl_size > 0 && cache->gdl != NULL)
 	{
@@ -226,12 +97,12 @@ void cache_sync(DiskInterface* disk, cache *cache)
 		// Remove from per-inode dirty list if it's a data block
 		if (*block_type==BLOCK_TYPE_DATA) dl_remove_block(cache->dirty_list, cache->cache[index].inode_number, cache->cache[index].block_number);
 	}
-	#endif
+	#endif*/
 }
 
-cache* alloc_cache()
+cache* alloc_cache(void)
 {
-	#ifndef CACHE_DISABLED
+/*	#ifndef CACHE_DISABLED
 	// Determine cache size based on available system memory
 	int gb_ram = 0;
 	int64_t physical_memory;
@@ -311,12 +182,13 @@ cache* alloc_cache()
 	return cache;
 	#else
 	return NULL;
-	#endif
+	#endif*/
+	return NULL;
 }
 
 void free_cache(cache *cache)
 {
-	#ifndef CACHE_DISABLED
+	/*#ifndef CACHE_DISABLED
 	// Clean up global dirty list
 	for (int i=cache->gdl_size; i>0; i--)
 	{
@@ -392,5 +264,5 @@ void free_cache(cache *cache)
 	free(cache->cache);
 	arc4random_buf(cache, sizeof(struct cache));
 	free(cache);
-	#endif
+	#endif*/
 }

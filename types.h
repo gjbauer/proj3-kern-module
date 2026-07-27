@@ -1,13 +1,7 @@
 #ifndef TYPES_H
 #define TYPES_H
 
-#include "pci.h"
-#include "fl.h"
-#include "lru.h"
-#include "dl.h"
-#include "gdl.h"
 #include <sys/stat.h>
-#include <pthread.h>
 
 // ==================== DISK INTERFACE ====================
 
@@ -16,10 +10,9 @@
  * Provides memory-mapped access to disk image file
  */
 typedef struct DiskInterface {
-    int disk_file;                   // File handle for the disk image
-    void* disk_base;                 // Memory-mapped base address of disk
-    uint64_t total_blocks;           // Total blocks available on disk
-    bool is_mounted;                 // Whether filesystem is mounted
+   struct mount *mp;
+   struct vnode *vp;
+   uint64_t total_blocks;
 } DiskInterface;
 
 // =================== Cache Structures ===================
@@ -34,9 +27,7 @@ typedef struct cache_entry_t
 	uint64_t block_number;       // Disk block number this entry represents
 	uint64_t inode_number;       // Inode that owns this block (for data blocks)
 	void *page_data;             // Pointer to the actual cached block data
-	struct LRU_List *lru_pos;    // Position in LRU list for eviction policy
-	struct GDL *gdl_pos;         // Position in global dirty list
-	pthread_mutex_t lock;	     // Lock for multithreading
+	//pthread_mutex_t lock;	     // Lock for multithreading
 } cache_entry_t;
 
 /**
@@ -44,15 +35,6 @@ typedef struct cache_entry_t
  */
 typedef struct cache
 {
-	int cache_size;              // Total number of cache entries
-	int lru_size;                // Current size of LRU list
-	int gdl_size;                // Current size of global dirty list
-	cache_entry_t *cache;        // Array of cache entries
-	PCI_HM *pci;                 // Primary Cache Index: maps block_number -> cache_index
-	LRU_List *lru;               // LRU list head for eviction policy
-	FL_LL *free_list;            // Free list of available cache slots
-	DL_HM *dirty_list;           // Dirty list: maps inode_number -> dirty blocks
-	GDL *gdl;                    // Global dirty list for sync operations
 } cache;
 
 // File types

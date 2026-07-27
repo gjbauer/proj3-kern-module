@@ -6,10 +6,22 @@
 
 #include "myfs.h"
 
+DiskInterface* disk;
+
+DiskInterface *get_disk(void)
+{
+	return disk;
+}
+
+void set_disk(DiskInterface *set_disk)
+{
+	disk = set_disk;
+}
+
 static int
 myfs_vn_open(struct vop_open_args *ap)
 {
-	struct vnode *vp = ap->a_vp;
+	//struct vnode *vp = ap->a_vp;
 
 	VNASSERT(vp->v_type == VREG || vp->v_type == VDIR, vp,
 	    ("myfs_open: non-regular file or directory"));
@@ -28,7 +40,7 @@ static int
 myfs_vn_read(struct vop_read_args *ap)
 {
 	struct vnode *vp = ap->a_vp;
-	struct uio *uio = ap->a_uio;
+	//struct uio *uio = ap->a_uio;
 
 	if (vp->v_type == VDIR)
 		return (EISDIR);
@@ -44,7 +56,7 @@ static int
 myfs_vn_write(struct vop_write_args *ap)
 {
 	struct vnode *vp = ap->a_vp;
-	struct uio *uio = ap->a_uio;
+	//struct uio *uio = ap->a_uio;
 
 	if (vp->v_type == VDIR)
 		return (EISDIR);

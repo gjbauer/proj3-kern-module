@@ -1,8 +1,8 @@
 #ifndef BITMAP_H
 #define BITMAP_H
 
-#include <stdint.h>
-#include <stdio.h>
+#include "myfs.h"
+
 #include "cache.h"
 
 /**

@@ -1,8 +1,20 @@
 #include "lock.h"
+#include "myfs.h"
 
-pthread_mutex_t lock;
+struct mtx lock;
 
-pthread_mutex_t *get_lock()
+struct mtx *get_lock()
 {
 	return &lock;
+}
+
+
+void lock(struct mtx *mtx)
+{
+	mtx_lock(mtx);
+}
+
+void unlock(struct mtx *mtx)
+{
+	mtx_unlock(mtx);
 }

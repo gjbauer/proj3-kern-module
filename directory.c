@@ -3,10 +3,7 @@
 #include "cache.h"
 #include "inode.h"
 #include "btr.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
+#include "myfs.h"
 #include "journal.h"
 #include "lock.h"
 
@@ -141,7 +138,7 @@ free_pair:
 
 int directory_remove_entry(DiskInterface* disk, cache *cache, const char *path, const char* name, bool write_through)
 {
-    int rv = -ENOENT;
+    int rv = ENOENT;
     InodeBtreePair *pair = item_search(disk, cache, path);
     Inode dir_node = {0}, file_node = {0};
     uint64_t block;

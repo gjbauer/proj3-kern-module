@@ -26,9 +26,9 @@ int superblock_write(DiskInterface* disk, cache *cache, const Superblock* superb
     memcpy( (Superblock*) ( block_type + 1 ), superblock, sizeof(struct Superblock));
     if (write_through)
     {
-    	pthread_mutex_lock(get_lock());
+    	lock(get_lock());
         disk_write_block(disk, 0, block_type);
-        pthread_mutex_unlock(get_lock());
+        unlock(get_lock());
         if (cache) decrease_pin_count(disk, cache, 0, 0);
     }
     else

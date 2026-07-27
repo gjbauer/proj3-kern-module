@@ -101,8 +101,8 @@ int64_t inode_allocate(DiskInterface* disk, cache *cache, mode_t mode, bool writ
             }
             node.inode_number = ii;
             node.mode = mode;
-            node.owner_id = getuid();
-            node.group_id = getgid();
+            node.owner_id = curthread->td_ucred->cr_uid;
+            node.group_id = curthread->td_ucred->cr_gid;
             node.reference_count = 1;
             if (inode_write(disk, cache, &node, write_through))
             {

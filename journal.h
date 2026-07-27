@@ -2,9 +2,7 @@
 #define JOURNAL_H
 #include "disk.h"
 #include "cache.h"
-#include <stdio.h>
-#include <stdbool.h>
-#include <stdint.h>
+#include "myfs.h"
 
 #undef PATH_MAX
 #define PATH_MAX 2030
@@ -13,14 +11,14 @@
 
 typedef enum transaction_type_t
 {
-    UNINITIALIZED = 0x0,
-    MKNOD = 0x444e4b4d,
-    UNLINK = 0x4b4e4c55,
-    LINK = 0x4b4e494c,
-    CHMOD = 0x444d4843,
-    TRUNCATE = 0x54435254,
-    WRITE = 0x54495257,
-    RENAME = 0x4d4e4552,
+    TT_UNINITIALIZED = 0x0,
+    TT_MKNOD = 0x444e4b4d,
+    TT_UNLINK = 0x4b4e4c55,
+    TT_LINK = 0x4b4e494c,
+    TT_CHMOD = 0x444d4843,
+    TT_TRUNCATE = 0x54435254,
+    TT_WRITE = 0x54495257,
+    TT_RENAME = 0x4d4e4552,
 } transaction_type_t;
 
 typedef struct journal_entry_t

@@ -4,8 +4,8 @@
 #include "disk.h"
 #include "config.h"
 #include "types.h"
-#include <sys/types.h>
-#include <unistd.h>
+
+#include "myfs.h"
 
 // Inode structure (file metadata)
 typedef struct Inode {

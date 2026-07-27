@@ -1,9 +1,7 @@
 #ifndef DISK_H
 #define DISK_H
 
-#include <stdint.h>
-#include <stdbool.h>
-#include <sys/stat.h>
+#include "myfs.h"
 #include "types.h"
 #include "bitmap.h"
 #include "cache.h"
@@ -11,6 +9,7 @@
 #include "superblock.h"
 #include "inode.h"
 #include "hash.h"
+#include "lock.h"
 
 // ==================== DISK OPERATIONS ====================
 
@@ -19,7 +18,7 @@
  * @param filename Path to disk image file
  * @return Pointer to DiskInterface or NULL on failure
  */
-DiskInterface* disk_open(const char* filename);
+DiskInterface* disk_open(struct mount *mp);
 
 /**
  * Close disk interface and free resources

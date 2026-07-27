@@ -22,8 +22,13 @@
 #include <sys/mutex.h>
 #include <sys/stat.h>
 #include <sys/dirent.h>
+#include <sys/proc.h>
+#include <sys/ucred.h>
 
 #include "superblock.h"
+#include "disk.h"
+#include "print.h"
+#include "lock.h"
 
 MALLOC_DECLARE(M_MYFS);
 
@@ -74,8 +79,15 @@ struct myfs_node {
 	/* Add more fields as needed */
 };
 
+/* DiskInterface operations */
+DiskInterface *get_disk(void);
+void set_disk(DiskInterface *set_disk);
+
 /* VFS operations */
 extern struct vfsops myfs_vfsops;
+
+/* VNODE operations */
+extern struct vop_vector myfs_vnodeops;
 
 /* Function declarations - make them static to match definitions */
 /* Remove these if functions are defined in the same file */

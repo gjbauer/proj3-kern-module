@@ -11,7 +11,7 @@ void initialize_journal_entry(DiskInterface *disk, cache *cache, journal_entry_t
     printf("initialize_journal_entry called with type: ");
     switch (entry->type)
     {
-        case MKNOD:
+        case TT_MKNOD:
             printf("MKNOD\n");
             entry->mknod.btree_block = 0;
             if ( FILE_TYPE_DIRECTORY == ( entry->mknod.mode & S_IFMT) )
@@ -25,22 +25,22 @@ void initialize_journal_entry(DiskInterface *disk, cache *cache, journal_entry_t
                 _truncate(disk, cache, entry->mknod.path, 0, true);
             }
             break;
-        case UNLINK:
+        case TT_UNLINK:
             printf("UNLINK\n");
             break;
-        case LINK:
+        case TT_LINK:
             printf("LINK\n");
             break;
-        case CHMOD:
+        case TT_CHMOD:
             printf("CHMOD\n");
             break;
-        case TRUNCATE:
+        case TT_TRUNCATE:
             printf("TRUNCATE\n");
             break;
-        case WRITE:
+        case TT_WRITE:
             printf("WRITE\n");
             break;
-        case RENAME:
+        case TT_RENAME:
             printf("RENAME\n");
             break;
         default:
@@ -92,10 +92,10 @@ void sync_entry(DiskInterface *disk, cache *cache, journal_entry_t *entry)
     printf("Syncing_journal_entry called with type: ");
     switch (entry->type)
     {
-        case UNINITIALIZED:
+        case TT_UNINITIALIZED:
             printf("UNINITIALIZED\n");
             break;
-        case MKNOD:
+        case TT_MKNOD:
             printf("MKNOD\n");
 	    
 	    if (!entry->mknod.inode_number)
@@ -178,29 +178,29 @@ clear:
 	    free(parent);
 	    free(name);
             break;
-        case UNLINK:
+        case TT_UNLINK:
             printf("UNLINK\n");
             _unlink(disk, cache, entry->unlink.path, true);
             break;
-        case LINK:
+        case TT_LINK:
             printf("LINK\n");
             _link(disk, cache, entry->link.from, entry->link.to, true);
             break;
-        case CHMOD:
+        case TT_CHMOD:
             printf("CHMOD\n");
             _chmod(disk, cache, entry->chmod.path, entry->chmod.mode, true);
             break;
-        case TRUNCATE:
+        case TT_TRUNCATE:
             printf("TRUNCATE\n");
             _truncate(disk, cache, entry->truncate.path, entry->truncate.size, true);
             break;
-        case WRITE:
+        case TT_WRITE:
             printf("WRITE\n");
             inode_read(disk, cache, entry->write.inode_number, &node);
             inode_set_block(disk, cache, &node, entry->write.block_index, entry->write.physical_block);
             inode_write(disk, cache, &node, true);
             break;
-        case RENAME:
+        case TT_RENAME:
             printf("RENAME\n");
             _rename(disk, cache, entry->rename.from, entry->rename.to, true);
             break;

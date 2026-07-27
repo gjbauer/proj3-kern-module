@@ -1,7 +1,7 @@
 #ifndef SUPERBLOCK_H
 #define SUPERBLOCK_H
 
-//#include "disk.h"
+#include "disk.h"
 
 // File system metadata (superblock)
 typedef struct Superblock {
@@ -20,9 +20,9 @@ typedef struct Superblock {
 } Superblock;
 
 // Superblock operations
-/*int superblock_read(DiskInterface* disk, cache *cache, Superblock* superblock);
+int superblock_read(DiskInterface* disk, cache *cache, Superblock* superblock);
 int superblock_write(DiskInterface* disk, cache *cache, const Superblock* superblock, bool write_through);
-int superblock_initialize(DiskInterface* disk, cache *cache, const char* volume_name);*/
+int superblock_initialize(DiskInterface* disk, cache *cache, const char* volume_name);
 
 // inode offsets
 int calculate_inode_bitmap_size(Superblock *superblock);
