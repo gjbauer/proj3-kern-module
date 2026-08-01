@@ -1,16 +1,12 @@
-#include <stdio.h>
+#include "myfs.h"
 #include "journal.h"
 #include <string.h>
-#include <errno.h>
 #include "btr.h"
 #include "disk.h"
 #include "hash.h"
-#ifdef __linux__
-#include <bsd/stdlib.h>
-#else
-#include <stdlib.h>
-#endif
 #include "lock.h"
+#include "types.h"
+
 
 int btree_write(DiskInterface *disk, cache *cache, uint64_t block_num)
 {
@@ -18,18 +14,18 @@ int btree_write(DiskInterface *disk, cache *cache, uint64_t block_num)
 	block_type_t *block_type = (block_type_t*) get_block(disk, cache, 0, block_num);
 	if (*block_type != BLOCK_TYPE_BTREE_NODE)
 	{
-		fprintf(stderr, "ERROR: Not a valid B-Tree node!\n");
+		FPRINTF("ERROR: Not a valid B-Tree node!\n");
 		return -1;
 	}
 	BTreeNode *node = (BTreeNode*)( block_type + 1 );
 
-	pthread_mutex_lock(get_lock());
+	lock(get_lock());
 	if (!disk_write_block(disk, node->block_number, block_type))
 	{
 		rv++;
 	}
 	decrease_pin_count(disk, cache, 0, node->block_number);
-	pthread_mutex_unlock(get_lock());
+	unlock(get_lock());
 
 	for (int i=0; i <= node->num_keys; i++)
 	{
@@ -96,7 +92,7 @@ int btree_node_read(DiskInterface* disk, cache *cache, uint64_t block_num, BTree
 	block_type_t *block_type = (block_type_t*) get_block(disk, cache, 0, block_num);
 	if (*block_type != BLOCK_TYPE_BTREE_NODE)
 	{
-		fprintf(stderr, "ERROR: Not a valid B-Tree node!\n");
+		FPRINTF("ERROR: Not a valid B-Tree node!\n");
 		return -1;
 	}
 	BTreeNode *disk_node = (BTreeNode*)( block_type + 1 );
@@ -107,7 +103,7 @@ int btree_node_read(DiskInterface* disk, cache *cache, uint64_t block_num, BTree
 
 	if (!ptr)
 	{
-		fprintf(stderr, "ERROR: Could not copy B-Tree node contents!\n");
+		FPRINTF("ERROR: Could not copy B-Tree node contents!\n");
 		return -1;
 	}
 	
@@ -123,7 +119,7 @@ int btree_node_write(DiskInterface* disk, cache *cache, BTreeNode* node)
 	block_type_t *block_type = (block_type_t*) get_block(disk, cache, 0, node->block_number);
 	if (*block_type != BLOCK_TYPE_BTREE_NODE)
 	{
-		fprintf(stderr, "ERROR: Not a valid B-Tree node!\n");
+		FPRINTF("ERROR: Not a valid B-Tree node!\n");
 		return -1;
 	}
 	BTreeNode *mem_node = (BTreeNode*)( (block_type_t*)block_type + 1 );
@@ -134,7 +130,7 @@ int btree_node_write(DiskInterface* disk, cache *cache, BTreeNode* node)
 	
 	if (!ptr)
 	{
-		fprintf(stderr, "ERROR: Could not copy B-Tree node contents!\n");
+		FPRINTF("ERROR: Could not copy B-Tree node contents!\n");
 		return -1;
 	}
     
@@ -183,7 +179,7 @@ uint64_t btree_search(DiskInterface* disk, cache *cache, uint64_t node_block, ui
  * Find the depth of a node in the B-tree
  * Follows the leftmost path down to a leaf to determine depth
  */
-int btree_find_depth(DiskInterface* disk, cache *cache, uint64_t node_block)
+static int btree_find_depth(DiskInterface* disk, cache *cache, uint64_t node_block)
 {
 	BTreeNode node;
 	btree_node_read(disk, cache, node_block, &node);
@@ -212,7 +208,7 @@ exit:
  * Find the height of the B-tree from a given node
  * Height is the number of levels from this node to the deepest leaf
  */
-int btree_find_height(DiskInterface* disk, cache *cache, uint64_t node_block)
+static int btree_find_height(DiskInterface* disk, cache *cache, uint64_t node_block)
 {
 	BTreeNode node;
 	btree_node_read(disk, cache, node_block, &node);
@@ -239,7 +235,7 @@ int btree_find_height(DiskInterface* disk, cache *cache, uint64_t node_block)
  * Find the minimum key in a B-tree subtree
  * Recursively follows the leftmost path to find the smallest key
  */
-int btree_find_minimum(DiskInterface* disk, cache *cache, uint64_t root_block)
+static int btree_find_minimum(DiskInterface* disk, cache *cache, uint64_t root_block)
 {
 	BTreeNode root;
 	btree_node_read(disk, cache, root_block, &root);
@@ -267,7 +263,7 @@ int btree_find_minimum(DiskInterface* disk, cache *cache, uint64_t root_block)
  * Find the maximum key in a B-tree subtree
  * Recursively follows the rightmost path to find the largest key
  */
-uint64_t btree_find_maximum(DiskInterface* disk, cache *cache, uint64_t root_block)
+static uint64_t btree_find_maximum(DiskInterface* disk, cache *cache, uint64_t root_block)
 {
 	BTreeNode root;
 	btree_node_read(disk, cache, root_block, &root);
@@ -298,10 +294,11 @@ uint64_t btree_find_maximum(DiskInterface* disk, cache *cache, uint64_t root_blo
  * Insert a node into a non-full internal node
  * Finds the correct position and shifts existing children as needed
  */
+static 
 int btree_insert_nonfull(DiskInterface* disk, cache *cache, BTreeNode *root, BTreeNode *node)
 {
 	if (root->is_leaf) {
-		fprintf(stderr, "ERROR: Trying to insert into leaf node\n");
+		FPRINTF("ERROR: Trying to insert into leaf node\n");
 		return -1;
 	} else {
 		// Find the correct position for the new child
@@ -352,6 +349,7 @@ int btree_insert_nonfull(DiskInterface* disk, cache *cache, BTreeNode *root, BTr
 	return 0;
 }
 
+static 
 int btree_insertion_search(DiskInterface* disk, cache *cache, uint64_t root_block, uint64_t key)
 {
 	BTreeNode root;
@@ -416,6 +414,7 @@ int btree_insertion_search(DiskInterface* disk, cache *cache, uint64_t root_bloc
  * Update parent node keys after a child modification
  * Ensures parent keys reflect the maximum values of their child subtrees
  */
+static 
 void btree_update_parent_keys(DiskInterface* disk, cache *cache, BTreeNode* node)
 {
 	if (node->parent == 0) return;  // No parent to update
@@ -487,8 +486,6 @@ int btree_insert(DiskInterface* disk, cache *cache, uint64_t root_block, uint64_
 
 int btree_insert_nocreate(DiskInterface* disk, cache *cache, uint64_t root_block, uint64_t key, uint64_t value, FileType type, BTreeNode *node)
 {
-	uint64_t page;
-	
 	int target_block = btree_insertion_search(disk, cache, root_block, key);
 	//printf("Target block: %d\n", target_block);
 	BTreeNode target;
@@ -535,6 +532,7 @@ int btree_insert_nocreate(DiskInterface* disk, cache *cache, uint64_t root_block
  * Borrow a child from the left sibling to rebalance the tree
  * Used during deletion when a node becomes too small
  */
+static 
 uint64_t btree_borrow_left(DiskInterface* disk, cache *cache, BTreeNode *node)
 {
 	uint64_t rv = 0;
@@ -567,6 +565,7 @@ uint64_t btree_borrow_left(DiskInterface* disk, cache *cache, BTreeNode *node)
  * Borrow a child from the right sibling to rebalance the tree
  * Used during deletion when a node becomes too small
  */
+static 
 uint64_t btree_borrow_right(DiskInterface* disk, cache *cache, BTreeNode *node)
 {
 	uint64_t rv = 0;
@@ -598,6 +597,7 @@ uint64_t btree_borrow_right(DiskInterface* disk, cache *cache, BTreeNode *node)
 	return rv;
 }
 
+static 
 void btree_remove_key(DiskInterface* disk, cache *cache, uint64_t root_block, uint64_t key)
 {
     BTreeNode current;
@@ -639,7 +639,7 @@ void btree_remove_key(DiskInterface* disk, cache *cache, uint64_t root_block, ui
     }
     
     if (child_to_remove == -1) {
-        printf("Key %llu not found in children!\n", key);
+        printf("Key %lu not found in children!\n", key);
         return;
     }
     
@@ -969,21 +969,21 @@ void btree_print(DiskInterface* disk, cache *cache, uint64_t root_block, int lev
 {
 	BTreeNode node;
 	btree_node_read(disk, cache, root_block, &node);
-	printf("%*sBlock %llu: ", level*2, "", root_block);  // Indent based on level
+	printf("%*sBlock %lu: ", level*2, "", root_block);  // Indent based on level
 	
 	if (node.is_leaf) {
 		// Print leaf node information
-		printf("LEAF key=%llu parent=%llu value=%llu\n", node.key, node.parent, node.value);
+		printf("LEAF key=%lu parent=%lu value=%lu\n", node.key, node.parent, node.value);
 	} else {
 		// Print internal node information
 		printf("INTERNAL keys=[");
 		for(int i = 0; i < node.num_keys; i++) {
-			printf("%llu", node.keys[i]);
+			printf("%lu", node.keys[i]);
 			if (i < node.num_keys-1) printf(",");
 		}
 		printf("] children=[");
 		for(int i = 0; i <= node.num_keys; i++) {
-			printf("%llu", node.children[i]);
+			printf("%lu", node.children[i]);
 			if (i < node.num_keys) printf(",");
 		}
 		printf("]\n");

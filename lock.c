@@ -1,11 +1,11 @@
 #include "lock.h"
 #include "myfs.h"
 
-struct mtx lock;
+struct mtx s_lock;
 
-struct mtx *get_lock()
+struct mtx *get_lock(void)
 {
-	return &lock;
+	return &s_lock;
 }
 
 

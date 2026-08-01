@@ -1,5 +1,6 @@
-i386/*
+i386
 vnode_if.h
 vnode_if_newproto.h
 vnode_if_typedef.h
-x86/*
+x86
+machine

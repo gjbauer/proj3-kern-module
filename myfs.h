@@ -25,10 +25,11 @@
 #include <sys/proc.h>
 #include <sys/ucred.h>
 
-#include "superblock.h"
 #include "disk.h"
+#include "superblock.h"
 #include "print.h"
 #include "lock.h"
+#include "btr.h"
 
 MALLOC_DECLARE(M_MYFS);
 

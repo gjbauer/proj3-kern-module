@@ -4,7 +4,7 @@
 #include "config.h"
 #include "myfs.h"
 #include "inode.h"
-#include <time.h>
+#include <sys/time.h>
 #include "lock.h"
 
 // Superblock operations
@@ -12,7 +12,7 @@ int superblock_read(DiskInterface* disk, cache *cache, Superblock* superblock)
 {
     block_type_t *block_type = (block_type_t*)get_block(disk, cache, 0, 0);
     if (*block_type != BLOCK_TYPE_SUPER) {
-        fprintf(stderr, "ERROR: Not a valid superblock!\n");
+        FPRINTF("ERROR: Not a valid superblock!\n");
         return -1;
     }
     memcpy(superblock, (Superblock*) ( block_type + 1 ), sizeof(Superblock));
@@ -52,7 +52,7 @@ int superblock_initialize(DiskInterface* disk, cache *cache, const char* volume_
     superblock->total_blocks = disk->total_blocks;
     superblock->free_blocks = disk->total_blocks;
 
-    printf("Total blocks: %llu\n", superblock->total_blocks);
+    printf("Total blocks: %lu\n", superblock->total_blocks);
     uint32_t block_bitmap_space = (superblock->total_blocks % USABLE_BLOCK_SIZE) ? ( (superblock->total_blocks / USABLE_BLOCK_SIZE) + 1 ) : (superblock->total_blocks / USABLE_BLOCK_SIZE);
     printf("Number of blocks needed for block bitmap: %u\n", block_bitmap_space );
     printf("Number of blocks needed for inode bitmap: %d\n", calculate_inode_bitmap_size(superblock) );
@@ -62,7 +62,9 @@ int superblock_initialize(DiskInterface* disk, cache *cache, const char* volume_
 
     strcpy(superblock->volume_name, volume_name);
 
-    superblock->creation_time = time(NULL);
+    struct timespec tsp;
+    getnanotime(&tsp);
+    superblock->creation_time = tsp.tv_nsec;
     return 0;
 }
 
