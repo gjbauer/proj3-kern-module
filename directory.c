@@ -52,12 +52,14 @@ int directory_add_entry(DiskInterface* disk, cache *cache, const char *path, con
                     db->entry_count = 0;
                 }
                 write_block(disk, cache, block_type, 0, block);
+                decrease_pin_count(disk, cache, pair->inode_number, block);
             }
             else block_type = get_block(disk, cache, pair->inode_number, block);
             
             if (BLOCK_TYPE_DATA != *block_type)
             {
                 fprintf(stderr, "ERROR: Not a data type block!!\n");
+                decrease_pin_count(disk, cache, pair->inode_number, block);
                 rv = -1;
                 goto free_pair;
             }
@@ -114,6 +116,7 @@ int directory_add_entry(DiskInterface* disk, cache *cache, const char *path, con
                     pthread_mutex_lock(get_lock());
                     disk_write_block(disk, block, block_type);
                     pthread_mutex_unlock(get_lock());
+                    decrease_pin_count(disk, cache, pair->inode_number, block);
                     inode_get_block(disk, cache, &node, 0, &block);
                     block_type = get_block(disk, cache, pair->inode_number, block);
                     db = (DirectoryBlock*) ( block_type + 1 );
@@ -128,6 +131,7 @@ int directory_add_entry(DiskInterface* disk, cache *cache, const char *path, con
                 }
                 if (entry[j].active) count++;
             }
+            decrease_pin_count(disk, cache, pair->inode_number, block);
         }
     }
 free_pair:
@@ -162,6 +166,7 @@ int directory_remove_entry(DiskInterface* disk, cache *cache, const char *path, 
             if (BLOCK_TYPE_DATA != *block_type)
             {
                 fprintf(stderr, "ERROR: Not a data type block!!\n");
+                decrease_pin_count(disk, cache, pair->inode_number, block);
                 goto free_pair;
             }
             if (0 == i)
@@ -197,6 +202,7 @@ int directory_remove_entry(DiskInterface* disk, cache *cache, const char *path, 
                     pthread_mutex_lock(get_lock());
                     disk_write_block(disk, block, block_type);
                     pthread_mutex_unlock(get_lock());
+                    decrease_pin_count(disk, cache, pair->inode_number, block);
                     inode_get_block(disk, cache, &dir_node, 0, &block);
                     block_type = get_block(disk, cache, pair->inode_number, block);
                     db = (DirectoryBlock*) ( block_type + 1 );
@@ -208,16 +214,13 @@ int directory_remove_entry(DiskInterface* disk, cache *cache, const char *path, 
                         pthread_mutex_unlock(get_lock());
                         decrease_pin_count(disk, cache, pair->inode_number, block);
                     }
-                    else
-                    {
-                        write_block(disk, cache, block_type, pair->inode_number, block);
-                        increase_pin_count(disk, cache, pair->inode_number, block);
-                    }
+                    write_block(disk, cache, block_type, pair->inode_number, block);
                     rv = 0;
                     break;
                 }
                 entry++;
                 if (entry->active) count++;
+                decrease_pin_count(disk, cache, pair->inode_number, block);
             }
         }
     }
@@ -271,6 +274,7 @@ int directory_list(DiskInterface* disk, cache *cache, const char *path, DirEntry
                     rv++;
                 }
             }
+            decrease_pin_count(disk, cache, pair->inode_number, block);
         }
     }
     btree_print(disk, cache, pair->btree_block, 0);
@@ -332,6 +336,7 @@ bool directory_exists_entry(DiskInterface* disk, cache *cache, const char *path,
                 entry++;
                 if (entry->active) count++;
             }
+            decrease_pin_count(disk, cache, pair->inode_number, block);
         }
     }
 free_pair:

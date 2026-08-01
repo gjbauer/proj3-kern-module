@@ -304,7 +304,7 @@ nbtrfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_
         }
         
         // Get pointer to the page data
-        block_type_t *block_type = (block_type_t*) get_block(disk, cache_s, node.inode_number, pnum);;
+        block_type_t *block_type = (block_type_t*) get_block(disk, cache_s, node.inode_number, pnum);
         // For data blocks, we need to skip the block type header
         char *data_area = (char*)(block_type + 1);
         
@@ -318,6 +318,8 @@ nbtrfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_
         
         // Copy data from page to buffer (after block type header)
         memcpy(buf + bytes_read, data_area + data_offset, bytes_to_read);
+        
+        decrease_pin_count(disk, cache_s, node.inode_number, pnum );
         
         // Update counters
         bytes_read += bytes_to_read;
@@ -381,6 +383,7 @@ nbtrfs_write(const char *path, const char *buf, size_t size, off_t offset, struc
             *block_type = BLOCK_TYPE_DATA;
             // Clear the rest of the block
             memset(block_type + 1, 0, BLOCK_SIZE - sizeof(block_type_t));
+            decrease_pin_count(disk, cache_s, node.inode_number, pnum );
             inode_set_block(disk, cache_s, &node, page_index, pnum);
             inode_write(disk, cache_s, &node, false);
             journal_entry_t entry;

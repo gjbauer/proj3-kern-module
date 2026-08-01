@@ -58,6 +58,7 @@ alloc_page(DiskInterface* disk, cache *cache)
 		if ( !(ii % USABLE_BLOCK_SIZE) && ii )
 		{
 			pbmn++;
+			decrease_pin_count(disk, cache, 0, pbmn);
 			pbm = get_block(disk, cache, 0, pbmn);
 		}
 		if (!bitmap_get(pbm, ii - ((pbmn - 1) * USABLE_BLOCK_SIZE))) {  // Found a free block
@@ -160,7 +161,7 @@ int disk_format(DiskInterface* disk, cache *cache, const char* volume_name)
 
     if (superblock_initialize(disk, cache, volume_name)) FPRINTF("ERROR: Volume name too long\n");
     if (superblock_read(disk, cache, &superblock)) FPRINTF("ERROR: Invalid superblock!\n");
-    printf("Size of journal entry = %llu\n", sizeof(struct journal_entry_t));
+    printf("Size of journal entry = %lu\n", sizeof(struct journal_entry_t));
     printf("Setting block types to bitmaps for bitmaps...\n");
     block_type_t *block_type;
     for (int i=1; i < superblock.inode_bitmap+calculate_inode_bitmap_size(&superblock); i++ )
@@ -207,7 +208,7 @@ int disk_format(DiskInterface* disk, cache *cache, const char* volume_name)
 	superblock.root_inode = root->value;
     superblock.btree_root = page;
     
-    printf("Free blocks: %llu\n", superblock.free_blocks);
+    printf("Free blocks: %lu\n", superblock.free_blocks);
 
     printf("Writing superblock...\n");
     superblock_write(disk, cache, &superblock, true);

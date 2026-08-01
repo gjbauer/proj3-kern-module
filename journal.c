@@ -83,6 +83,7 @@ void initialize_journal_entry(DiskInterface *disk, cache *cache, journal_entry_t
     pthread_mutex_lock(get_lock());
     disk_write_block(disk, journal_block, block_type);
     pthread_mutex_unlock(get_lock());
+    decrease_pin_count(disk, cache, 0, journal_block );
     printf("Journal entry written, new head = %llu\n", sb.journal_head);
 }
 
@@ -248,6 +249,8 @@ void sync_journal(DiskInterface *disk, cache *cache)
             printf("Found existing journal entry, syncing...\n");
             sync_entry(disk, cache, prev_entry);
         }
+        
+        decrease_pin_count(disk, cache, 0, sb.journal_start + sb.journal_head );
 
         if (sb.journal_head == ( calculate_journal_size(&sb) - 2 ) ) sb.journal_head = 0;
         else sb.journal_head++;
@@ -278,6 +281,8 @@ void mark_journal_synced(DiskInterface *disk, cache *cache)
             printf("Found existing journal entry, marking as synced...\n");
             mark_entry_synced(disk, cache, prev_entry);
         }
+        
+        decrease_pin_count(disk, cache, 0, sb.journal_start + sb.journal_head );
 
         if (sb.journal_head == ( calculate_journal_size(&sb) - 2 ) ) sb.journal_head = 0;
         else sb.journal_head++;

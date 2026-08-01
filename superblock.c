@@ -2,7 +2,7 @@
 #include "superblock.h"
 #include <string.h>
 #include "config.h"
-#include <stdint.h>
+#include "myfs.h"
 #include "inode.h"
 #include <time.h>
 #include "lock.h"

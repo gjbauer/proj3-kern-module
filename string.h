@@ -3,8 +3,7 @@
 
 #include <string.h>
 #include "journal.h"
-#include <stdlib.h>
-#include <stdio.h>
+#include "myfs.h"
 
 int count_l(const char *path);
 

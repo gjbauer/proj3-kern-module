@@ -27,8 +27,8 @@ int btree_write(DiskInterface *disk, cache *cache, uint64_t block_num)
 	if (!disk_write_block(disk, node->block_number, block_type))
 	{
 		rv++;
-		decrease_pin_count(disk, cache, 0, node->block_number);
 	}
+	decrease_pin_count(disk, cache, 0, node->block_number);
 	pthread_mutex_unlock(get_lock());
 
 	for (int i=0; i <= node->num_keys; i++)
@@ -73,6 +73,7 @@ BTreeNode* btree_node_create(DiskInterface* disk, cache *cache, bool is_leaf, ui
 	for(int i=0; i<=MAX_KEYS; i++) node->children[i]=0;
     
     write_block(disk, cache, block_type, 0, node->block_number);
+    decrease_pin_count(disk, cache, 0, node->block_number);
 	
 	return node;
 }
@@ -102,6 +103,7 @@ int btree_node_read(DiskInterface* disk, cache *cache, uint64_t block_num, BTree
 	
 	// Copy node data from disk to memory structure
 	void *ptr = memcpy((char*)node, (char*)disk_node, sizeof(struct BTreeNode));
+	decrease_pin_count(disk, cache, 0, block_num);
 
 	if (!ptr)
 	{
@@ -128,6 +130,7 @@ int btree_node_write(DiskInterface* disk, cache *cache, BTreeNode* node)
 	
 	// Copy node data from memory to disk
 	void *ptr = memcpy((char*)mem_node, (char*)node, sizeof(struct BTreeNode));
+	decrease_pin_count(disk, cache, 0, node->block_number);
 	
 	if (!ptr)
 	{
