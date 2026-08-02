@@ -1,8 +1,6 @@
 #ifndef CACHE_H
 #define CACHE_H
 
-#include "myfs.h"
-
 #include "config.h"
 #include "disk.h"
 #include "types.h"

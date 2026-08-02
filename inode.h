@@ -5,8 +5,6 @@
 #include "config.h"
 #include "types.h"
 
-#include "myfs.h"
-
 // Inode structure (file metadata)
 typedef struct Inode {
     int64_t inode_number;            // Unique inode identifier

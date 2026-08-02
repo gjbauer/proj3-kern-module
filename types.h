@@ -2,6 +2,9 @@
 #define TYPES_H
 
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/mount.h>
+#include <sys/vnode.h>
 
 // ==================== DISK INTERFACE ====================
 

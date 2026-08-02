@@ -1,6 +1,5 @@
 #ifndef HASH_H
 #define HASH_H
-#include "myfs.h"
 #include "disk.h"
 #include "cache.h"
 

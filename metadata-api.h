@@ -3,17 +3,13 @@
 
 #include "inode.h"
 #include "hash.h"
-#include <time.h>
 #include "directory.h"
 #ifdef __linux__
 #include <bsd/stdlib.h>
 #endif
-#include <stdlib.h>
-#include <stdio.h>
 #include "disk.h"
 #include "cache.h"
 #include "string.h"
-#include <stdint.h>
 
 int _mknod(DiskInterface *disk, cache *cache, const char *path, mode_t mode, uint64_t btree_block, bool write_through, int64_t *out_inode);
 

@@ -3,6 +3,7 @@
 
 #include "disk.h"
 #include "types.h"
+#include <sys/types.h>
 
 // File system metadata (superblock)
 typedef struct Superblock {

@@ -1,7 +1,6 @@
 #ifndef DISK_H
 #define DISK_H
 
-#include "myfs.h"
 #include "types.h"
 #include "bitmap.h"
 #include "cache.h"

@@ -25,8 +25,10 @@
 #include <sys/proc.h>
 #include <sys/ucred.h>
 
-#include "disk.h"
+//#include "types.h"
+
 #include "superblock.h"
+#include "disk.h"
 #include "print.h"
 #include "lock.h"
 #include "btr.h"
