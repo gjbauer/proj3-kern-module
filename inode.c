@@ -1,10 +1,6 @@
 #include "inode.h"
 #include "superblock.h"
-#ifdef __linux__
-#include <bsd/stdlib.h>
-#else
-#include <stdlib.h>
-#endif
+#include "myfs.h"
 #include <string.h>
 #include "disk.h"
 #include "lock.h"
@@ -19,7 +15,7 @@ int inode_read(DiskInterface* disk, cache *cache, uint64_t inode_number, Inode* 
     block_type_t *block_type = get_block(disk, cache, 0, sb.inode_bitmap + calculate_inode_bitmap_size(&sb) + inode_page);
     if (*block_type != BLOCK_TYPE_INODE)
     {
-        fprintf(stderr, "ERROR: Not a valid inode table block!\n");
+        FPRINTF("ERROR: Not a valid inode table block!\n");
         goto clear_stack;
     }
     Inode *node = (Inode*) ( block_type + 1);
@@ -28,7 +24,7 @@ int inode_read(DiskInterface* disk, cache *cache, uint64_t inode_number, Inode* 
     memcpy(inode, node, sizeof(struct Inode));
     
     rv = 0;
-    printf("inode_read: inode=%llu, mode=%o\n", inode_number, inode->mode);
+    printf("inode_read: inode=%lu, mode=%o\n", inode_number, inode->mode);
 clear_stack:
     decrease_pin_count(disk, cache, 0, sb.inode_bitmap + calculate_inode_bitmap_size(&sb) + inode_page);
     arc4random_buf(&sb, sizeof(struct Superblock));
@@ -45,7 +41,7 @@ int inode_write(DiskInterface* disk, cache *cache, const Inode* inode, bool writ
     block_type_t *block_type = get_block(disk, cache, 0, sb.inode_bitmap + calculate_inode_bitmap_size(&sb) + inode_page);
     if (*block_type != BLOCK_TYPE_INODE)
     {
-        fprintf(stderr, "ERROR: Not a valid inode table block!\n");
+        FPRINTF("ERROR: Not a valid inode table block!\n");
         arc4random_buf(&sb, sizeof(struct Superblock));
         goto clear_stack;
     }
@@ -54,13 +50,13 @@ int inode_write(DiskInterface* disk, cache *cache, const Inode* inode, bool writ
     memcpy(node, inode, sizeof(struct Inode));
     if (write_through)
     {
-    	pthread_mutex_lock(get_lock());
+    	lock(get_lock());
         disk_write_block(disk, sb.inode_bitmap + calculate_inode_bitmap_size(&sb) + inode_page, block_type);
-        pthread_mutex_unlock(get_lock());
+        unlock(get_lock());
     }
     write_block(disk, cache, block_type, 0, sb.inode_bitmap + calculate_inode_bitmap_size(&sb) + inode_page);
     rv = 0;
-    printf("inode_write: inode=%llu, mode=%o\n", inode->inode_number, inode->mode);
+    printf("inode_write: inode=%lu, mode=%o\n", inode->inode_number, inode->mode);
 clear_stack:
     decrease_pin_count(disk, cache, 0, sb.inode_bitmap + calculate_inode_bitmap_size(&sb) + inode_page);
     arc4random_buf(&sb, sizeof(struct Superblock));
@@ -89,12 +85,12 @@ int64_t inode_allocate(DiskInterface* disk, cache *cache, mode_t mode, bool writ
 		if (!bitmap_get(ibm, ii - ((ibmn - sb.inode_bitmap) * USABLE_BLOCK_SIZE))) {  // Found a free inode
 			if (bitmap_put(ibm, ii - ((ibmn - sb.inode_bitmap) * USABLE_BLOCK_SIZE), 1))  // Mark it as allocated
 			{
-				fprintf(stderr, "ERROR: Could not allocate inode!!\n");
+				FPRINTF("ERROR: Could not allocate inode!!\n");
                 goto wipe_superblock;
 			}
             if (inode_read(disk, cache, ii, &node))
             {
-                fprintf(stderr, "ERROR: Could not read inode!!\n");
+                FPRINTF("ERROR: Could not read inode!!\n");
                 goto wipe_inode;
             }
             node.inode_number = ii;
@@ -104,23 +100,23 @@ int64_t inode_allocate(DiskInterface* disk, cache *cache, mode_t mode, bool writ
             node.reference_count = 1;
             if (inode_write(disk, cache, &node, write_through))
             {
-                fprintf(stderr, "ERROR: Could not write inode!!\n");
+                FPRINTF("ERROR: Could not write inode!!\n");
                 goto wipe_inode;
             }
             if (write_through)
             {
-            	pthread_mutex_lock(get_lock());
+            	lock(get_lock());
                 disk_write_block(disk, ibmn, ibm);
-                pthread_mutex_unlock(get_lock());
+                unlock(get_lock());
             }
             write_block(disk, cache, ibm, 0, ibmn);
-			printf("+ inode_allocate() -> %llu\n", ii);
+			printf("+ inode_allocate() -> %lu\n", ii);
 			rv = ii;
             goto wipe_inode;
 		}
 	}
 
-    fprintf(stderr, "ERROR: No free inodes available for allocation!\n");
+    FPRINTF("ERROR: No free inodes available for allocation!\n");
 wipe_inode:
     decrease_pin_count(disk, cache, 0, ibmn);
     arc4random_buf(&node, sizeof(struct Inode));
@@ -145,7 +141,7 @@ int inode_free(DiskInterface* disk, cache *cache, uint64_t inode_number, bool wr
     
     if (bitmap_put(ibm, bit_offset_in_block, 0))  // Mark bit as free
     {
-        fprintf(stderr, "ERROR: Selected inode could not be freed!\n");
+        FPRINTF("ERROR: Selected inode could not be freed!\n");
         goto return_rv;
     }
     // Securely erase inode contents
@@ -155,7 +151,7 @@ int inode_free(DiskInterface* disk, cache *cache, uint64_t inode_number, bool wr
     block_type_t *block_type = get_block(disk, cache, 0, ( sb.inode_bitmap + calculate_inode_bitmap_size(&sb) + inode_page ));
     if (BLOCK_TYPE_INODE != *block_type)
     {
-        fprintf(stderr, "ERROR: Not a valid inode block!!\n");
+        FPRINTF("ERROR: Not a valid inode block!!\n");
         goto return_rv;
     }
     Inode *node = ( (Inode*)( block_type + 1) + ( inode_number % inode_per_page ) );
@@ -163,25 +159,25 @@ int inode_free(DiskInterface* disk, cache *cache, uint64_t inode_number, bool wr
     memset(node, 0, sizeof(struct Inode) );
     if (write_through)
     {
-    	pthread_mutex_lock(get_lock());
+    	lock(get_lock());
         disk_write_block(disk, ( sb.inode_bitmap + calculate_inode_bitmap_size(&sb) + inode_page ), block_type);
-        pthread_mutex_unlock(get_lock());
+        unlock(get_lock());
     }
     write_block(disk, cache, block_type, 0,  ( sb.inode_bitmap + calculate_inode_bitmap_size(&sb) + inode_page ) );
     decrease_pin_count(disk, cache, 0, ( sb.inode_bitmap + calculate_inode_bitmap_size(&sb) + inode_page ));
-    printf("+ inode_free(%llu)\n", inode_number);
+    printf("+ inode_free(%lu)\n", inode_number);
     if (write_through)
     {
-    	pthread_mutex_lock(get_lock());
+    	lock(get_lock());
         disk_write_block(disk, ibmn, ibm);
-        pthread_mutex_unlock(get_lock());
+        unlock(get_lock());
     }
     write_block(disk, cache, ibm, 0, ibmn);
     decrease_pin_count(disk, cache, 0, ibmn);
-    arc4random_buf(&sb, sizeof(struct Superblock));
     rv = 0;
 return_rv:
-    return 0;
+    arc4random_buf(&sb, sizeof(struct Superblock));
+    return rv;
 }
 
 int inode_get_block(DiskInterface* disk, cache *cache, Inode* inode, uint64_t block_index, uint64_t* physical_block)
@@ -270,9 +266,9 @@ int inode_set_block(DiskInterface* disk, cache *cache, Inode* inode, uint64_t bl
             memset(sind, 0, USABLE_BLOCK_SIZE);
             write_block(disk, cache, block_type, inode->inode_number, inode->indirect_block);
             #ifndef CACHE_DISABLED
-            pthread_mutex_lock(get_lock());
+            lock(get_lock());
             disk_write_block(disk, inode->indirect_block, block_type);
-            pthread_mutex_unlock(get_lock());
+            unlock(get_lock());
             #endif
             decrease_pin_count(disk, cache, inode->inode_number, inode->indirect_block);
         }
@@ -284,18 +280,18 @@ int inode_set_block(DiskInterface* disk, cache *cache, Inode* inode, uint64_t bl
         *sind = physical_block;
         write_block(disk, cache, block_type, inode->inode_number, inode->indirect_block);
         #ifndef CACHE_DISABLED
-        pthread_mutex_lock(get_lock());
+        lock(get_lock());
         disk_write_block(disk, inode->indirect_block, block_type);
-        pthread_mutex_unlock(get_lock());
+        unlock(get_lock());
         #endif
         decrease_pin_count(disk, cache, inode->inode_number, inode->indirect_block);
         block_type = get_block(disk, cache, inode->inode_number, physical_block);
         *block_type = BLOCK_TYPE_DATA;
         write_block(disk, cache, block_type, inode->inode_number, physical_block);
         #ifndef CACHE_DISABLED
-        pthread_mutex_lock(get_lock());
+        lock(get_lock());
         disk_write_block(disk, physical_block, block_type);
-        pthread_mutex_unlock(get_lock());
+        unlock(get_lock());
         #endif
         decrease_pin_count(disk, cache, inode->inode_number, physical_block);
         rv = 0;
@@ -330,9 +326,9 @@ int inode_set_block(DiskInterface* disk, cache *cache, Inode* inode, uint64_t bl
             memset(sind, 0, USABLE_BLOCK_SIZE);
             write_block(disk, cache, block_type, inode->inode_number, inode->indirect_block);
             #ifndef CACHE_DISABLED
-            pthread_mutex_lock(get_lock());
+            lock(get_lock());
             disk_write_block(disk, inode->indirect_block, block_type);
-            pthread_mutex_unlock(get_lock());
+            unlock(get_lock());
             #endif
             decrease_pin_count(disk, cache, inode->inode_number, inode->double_indirect_block);
         }
@@ -352,9 +348,9 @@ int inode_set_block(DiskInterface* disk, cache *cache, Inode* inode, uint64_t bl
             *block_type = BLOCK_TYPE_DATA;
             write_block(disk, cache, block_type, inode->inode_number, *dind);
             #ifndef CACHE_DISABLED
-            pthread_mutex_lock(get_lock());
+            lock(get_lock());
             disk_write_block(disk, inode->indirect_block, block_type);
-            pthread_mutex_unlock(get_lock());
+            unlock(get_lock());
             #endif
             decrease_pin_count(disk, cache, inode->inode_number, *dind);
         }
@@ -366,9 +362,9 @@ int inode_set_block(DiskInterface* disk, cache *cache, Inode* inode, uint64_t bl
         *dind = physical_block;
         write_block(disk, cache, block_type, inode->inode_number, *dind);
         #ifndef CACHE_DISABLED
-        pthread_mutex_lock(get_lock());
+        lock(get_lock());
         disk_write_block(disk, inode->indirect_block, block_type);
-        pthread_mutex_unlock(get_lock());
+        unlock(get_lock());
         #endif
         decrease_pin_count(disk, cache, inode->inode_number, *dind);
     }

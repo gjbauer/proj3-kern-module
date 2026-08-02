@@ -40,11 +40,11 @@ int directory_add_entry(DiskInterface* disk, cache *cache, const char *path, con
                 *block_type = BLOCK_TYPE_DATA;
                 inode_write(disk, cache, &node, write_through);
                 journal_entry_t entry;
-                entry.type = WRITE;
+                entry.type = TT_WRITE;
                 entry.write.inode_number = node.inode_number;
                 entry.write.block_index = i;
                 entry.write.physical_block = block;
-                printf("WRITE to directory block # %llu\n", block);
+                printf("WRITE to directory block # %lu\n", block);
                 initialize_journal_entry(disk, cache, &entry);
                 if (0 == i)
                 {
@@ -58,7 +58,7 @@ int directory_add_entry(DiskInterface* disk, cache *cache, const char *path, con
             
             if (BLOCK_TYPE_DATA != *block_type)
             {
-                fprintf(stderr, "ERROR: Not a data type block!!\n");
+                FPRINTF("ERROR: Not a data type block!!\n");
                 decrease_pin_count(disk, cache, pair->inode_number, block);
                 rv = -1;
                 goto free_pair;
@@ -85,7 +85,7 @@ int directory_add_entry(DiskInterface* disk, cache *cache, const char *path, con
                 if (!entry[j].active || count == number_of_entries)
                 {
                     number_of_entries++;
-                    printf("Adding entry: name='%s', inode=%llu, type=%d, count before=%d, count after=%d, block=%llu\n",
+                    printf("Adding entry: name='%s', inode=%lu, type=%d, count before=%d, count after=%d, block=%lu\n",
                            name, target_inode, type, number_of_entries - 1, number_of_entries, block);
                     if (FILE_TYPE_DIRECTORY == type)
                     {
@@ -113,17 +113,17 @@ int directory_add_entry(DiskInterface* disk, cache *cache, const char *path, con
                         }
                     }
                     memcpy( &entry[j], &new_file, sizeof(struct DirEntry) );
-                    pthread_mutex_lock(get_lock());
+                    lock(get_lock());
                     disk_write_block(disk, block, block_type);
-                    pthread_mutex_unlock(get_lock());
+                    unlock(get_lock());
                     decrease_pin_count(disk, cache, pair->inode_number, block);
                     inode_get_block(disk, cache, &node, 0, &block);
                     block_type = get_block(disk, cache, pair->inode_number, block);
                     db = (DirectoryBlock*) ( block_type + 1 );
                     db->entry_count = number_of_entries;
-                    pthread_mutex_lock(get_lock());
+                    lock(get_lock());
                     disk_write_block(disk, block, block_type);
-                    pthread_mutex_unlock(get_lock());
+                    unlock(get_lock());
                     write_block(disk, cache, block_type, 0, block);
                     btree_write(disk, cache, pair->btree_block);
                     rv = 0;
@@ -136,7 +136,7 @@ int directory_add_entry(DiskInterface* disk, cache *cache, const char *path, con
     }
 free_pair:
     arc4random_buf(pair, sizeof(struct InodeBtreePair));
-    free(pair);
+    free(pair, M_MYFS);
     return rv;
 }
 
@@ -165,7 +165,7 @@ int directory_remove_entry(DiskInterface* disk, cache *cache, const char *path, 
             block_type = get_block(disk, cache, pair->inode_number, block);
             if (BLOCK_TYPE_DATA != *block_type)
             {
-                fprintf(stderr, "ERROR: Not a data type block!!\n");
+                FPRINTF("ERROR: Not a data type block!!\n");
                 decrease_pin_count(disk, cache, pair->inode_number, block);
                 goto free_pair;
             }
@@ -199,9 +199,9 @@ int directory_remove_entry(DiskInterface* disk, cache *cache, const char *path, 
                         if (write_through)
                         	btree_write(disk, cache, pair->btree_block);
                     }
-                    pthread_mutex_lock(get_lock());
+                    lock(get_lock());
                     disk_write_block(disk, block, block_type);
-                    pthread_mutex_unlock(get_lock());
+                    unlock(get_lock());
                     decrease_pin_count(disk, cache, pair->inode_number, block);
                     inode_get_block(disk, cache, &dir_node, 0, &block);
                     block_type = get_block(disk, cache, pair->inode_number, block);
@@ -209,9 +209,9 @@ int directory_remove_entry(DiskInterface* disk, cache *cache, const char *path, 
                     db->entry_count = number_of_entries;
                     if (write_through)
                     {
-                    	pthread_mutex_lock(get_lock());
+                    	lock(get_lock());
                         disk_write_block(disk, block, block_type);
-                        pthread_mutex_unlock(get_lock());
+                        unlock(get_lock());
                         decrease_pin_count(disk, cache, pair->inode_number, block);
                     }
                     write_block(disk, cache, block_type, pair->inode_number, block);
@@ -226,7 +226,7 @@ int directory_remove_entry(DiskInterface* disk, cache *cache, const char *path, 
     }
 free_pair:
     arc4random_buf(pair, sizeof(struct InodeBtreePair));
-    free(pair);
+    free(pair, M_MYFS);
     return rv;
 }
 
@@ -247,26 +247,26 @@ int directory_list(DiskInterface* disk, cache *cache, const char *path, DirEntry
         for (uint16_t i=0; i < UINT16_MAX; i++)
         {
             inode_get_block(disk, cache, &node, i, &block);
-            printf("Getting block number: %llu\n", block);
+            printf("Getting block number: %lu\n", block);
             if (!block)
                 break;
             block_type = get_block(disk, cache, pair->inode_number, block);
             if (BLOCK_TYPE_DATA != *block_type)
             {
-                fprintf(stderr, "ERROR: Not a data type block!!\n");
+                FPRINTF("ERROR: Not a data type block!!\n");
                 break;
             }
             if (0 == i)
             {
                 db = (DirectoryBlock*) ( block_type + 1 );
-                *entries = malloc( db->entry_count * sizeof(struct DirEntry) );
+                *entries = malloc( db->entry_count * sizeof(struct DirEntry), M_MYFS, M_WAITOK );
                 entry = (DirEntry*) ( db + 1 );
                 number_of_entries = db->entry_count;
             }
             else entry = (DirEntry*) ( block_type + 1 );
-            if (db->entry_count == rv) break;
+            if (number_of_entries == rv) break;
             uint16_t entries_per_block = USABLE_BLOCK_SIZE / sizeof(struct DirEntry);
-            for (uint16_t j=0; j < entries_per_block && rv < db->entry_count; j++, entry++)
+            for (uint16_t j=0; j < entries_per_block && rv < number_of_entries; j++, entry++)
             {
                 if (entry->active)
                 {
@@ -280,11 +280,11 @@ int directory_list(DiskInterface* disk, cache *cache, const char *path, DirEntry
     btree_print(disk, cache, pair->btree_block, 0);
     printf("=== directory_list for %s ===\n", path);
     for (int i = 0; i < rv; i++) {
-        printf("  entry %d: name='%s', inode=%llu, active=%d\n",
+        printf("  entry %d: name='%s', inode=%lu, active=%d\n",
                i, (*entries)[i].name, (*entries)[i].inode_number, (*entries)[i].active);
     }
     arc4random_buf(pair, sizeof(struct InodeBtreePair));
-    free(pair);
+    free(pair, M_MYFS);
     return rv;
 }
 
@@ -313,7 +313,7 @@ bool directory_exists_entry(DiskInterface* disk, cache *cache, const char *path,
             block_type = get_block(disk, cache, pair->inode_number, block);
             if (BLOCK_TYPE_DATA != *block_type)
             {
-                fprintf(stderr, "ERROR: Not a data type block!!\n");
+                FPRINTF("ERROR: Not a data type block!!\n");
                 goto free_pair;
             }
             if (0 == i)
@@ -341,6 +341,6 @@ bool directory_exists_entry(DiskInterface* disk, cache *cache, const char *path,
     }
 free_pair:
     arc4random_buf(pair, sizeof(struct InodeBtreePair));
-    free(pair);
+    free(pair, M_MYFS);
     return rv;
 }

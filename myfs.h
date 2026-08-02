@@ -64,7 +64,7 @@ struct myfs_inode {
 struct myfs_mount {
 	struct mount	*mnt;			/* Back pointer to mount */
 	struct vnode	*mnt_rootvp;		/* Root vnode */
-	Superblock mnt_sb;		/* Superblock copy */
+	Superblock	mnt_sb;		/* Superblock copy */
 	dev_t		mnt_dev;		/* Device mounted */
 	struct g_consumer *mnt_cp;		/* GEOM consumer */
 	/* Add more fields as needed */
