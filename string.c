@@ -1,4 +1,5 @@
 #include "string.h"
+#include "alloc.h"
 
 int
 count_l(const char *path)
@@ -13,7 +14,7 @@ count_l(const char *path)
 
 char* parent_path(const char *path, int l)
 {
-    char *pp = malloc(PATH_MAX);
+    char *pp = MALLOC(PATH_MAX);
     memset(pp, '\0', PATH_MAX);
 
     if (l <= 1) {
@@ -45,9 +46,9 @@ char* get_name(const char *path)
 {
     const char *last_slash = strrchr(path, '/');
     if (!last_slash) {
-        return strdup(path);
+        return STRDUP(path);
     }
-    return strdup(last_slash + 1);
+    return STRDUP(last_slash + 1);
 }
 
 char *split(const char *path, int n)
@@ -76,7 +77,8 @@ char *split(const char *path, int n)
             
             // Copy the segment
             size_t len = end - start;
-            char *buf = (char*)calloc(len + 1, sizeof(char));
+            char *buf = (char*)MALLOC(len + 1, sizeof(char));
+	    memset(buf, 0, (len + 1) * sizeof(char));
             strncpy(buf, start, len);
             buf[len] = '\0';
             return buf;

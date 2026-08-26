@@ -4,6 +4,8 @@
 #include "metadata-api.h"
 #include "inode.h"
 #include "lock.h"
+#include "time.h"
+#include "alloc.h"
 
 void initialize_journal_entry(DiskInterface *disk, cache *cache, journal_entry_t *entry)
 {
@@ -21,7 +23,7 @@ void initialize_journal_entry(DiskInterface *disk, cache *cache, journal_entry_t
                 entry->mknod.inode_number = pair->inode_number;
                 entry->mknod.btree_block = pair->btree_block;
                 arc4random_buf(pair, sizeof(struct InodeBtreePair));
-                free(pair);
+                FREE(pair);
                 _truncate(disk, cache, entry->mknod.path, 0, true);
             }
             break;
@@ -55,14 +57,14 @@ void initialize_journal_entry(DiskInterface *disk, cache *cache, journal_entry_t
     superblock_read(disk, cache, &sb);
 
     uint64_t journal_block = sb.journal_start + sb.journal_head;
-    printf("Reading journal block %llu\n", journal_block);
+    printf("Reading journal block %lu\n", journal_block);
     
     entry->block_number = journal_block;
 
     block_type = (block_type_t*)get_block(disk, cache, 0, journal_block);
 
     if (*block_type != BLOCK_TYPE_JOURNAL) {
-        fprintf(stderr, "ERROR: Block %llu is not a journal block! type=0x%x\n", journal_block, *block_type);
+        FPRINTF("ERROR: Block %lu is not a journal block! type=0x%x\n", journal_block, *block_type);
         // Don't proceed - journal is corrupted
         return;
     }
@@ -80,11 +82,11 @@ void initialize_journal_entry(DiskInterface *disk, cache *cache, journal_entry_t
     superblock_write(disk, cache, &sb, true);
 
     memcpy(prev_entry, entry, sizeof(struct journal_entry_t));
-    pthread_mutex_lock(get_lock());
+    lock(get_lock());
     disk_write_block(disk, journal_block, block_type);
-    pthread_mutex_unlock(get_lock());
+    unlock(get_lock());
     decrease_pin_count(disk, cache, 0, journal_block );
-    printf("Journal entry written, new head = %llu\n", sb.journal_head);
+    printf("Journal entry written, new head = %lu\n", sb.journal_head);
 }
 
 void sync_entry(DiskInterface *disk, cache *cache, journal_entry_t *entry)
@@ -105,7 +107,7 @@ void sync_entry(DiskInterface *disk, cache *cache, journal_entry_t *entry)
             	return;
             }
             inode_read(disk, cache, entry->mknod.inode_number, &node);
-            node.creation_time = time(NULL);
+            node.creation_time = TIME();
     	    node.mode = entry->mknod.mode;
     	    inode_write(disk, cache, &node, true);
     	    
@@ -122,7 +124,6 @@ void sync_entry(DiskInterface *disk, cache *cache, journal_entry_t *entry)
     	    {
     	        if ( FILE_TYPE_DIRECTORY == ( entry->mknod.mode & S_IFMT) )
     		{
-    		        BTreeNode *second_tree_node = btree_node_create(disk, cache, false, &block_num);
     		        if (block_num)
     		        {
 	    		        btree_insert(disk, cache, pair->btree_block, path_hash(name), block_num, ( entry->mknod.mode & S_IFMT));
@@ -156,7 +157,6 @@ void sync_entry(DiskInterface *disk, cache *cache, journal_entry_t *entry)
     		    {
     		    	btree_node_read(disk, cache, block_num, &tree_node);
     		    	uint64_t page = 0;
-    		        BTreeNode *second_tree_node = btree_node_create(disk, cache, false, &page);
     		        if (page)
 	    		    tree_node.value = page;
 	    		else goto clear;
@@ -173,11 +173,11 @@ void sync_entry(DiskInterface *disk, cache *cache, journal_entry_t *entry)
     	    btree_write(disk, cache, pair->btree_block);
 clear:
     	    arc4random_buf(pair, sizeof(struct InodeBtreePair));
-            free(pair);
+            FREE(pair);
             arc4random_buf(parent, strlen(parent));
 	    arc4random_buf(name, strlen(name));
-	    free(parent);
-	    free(name);
+	    FREE(parent);
+	    FREE(name);
             break;
         case TT_UNLINK:
             printf("UNLINK\n");
@@ -210,20 +210,20 @@ clear:
     
     block_type_t *block_type;
     block_type = ( (block_type_t*) entry - 1 );
-    pthread_mutex_lock(get_lock());
+    lock(get_lock());
     disk_write_block(disk, entry->block_number, block_type);
-    pthread_mutex_unlock(get_lock());
+    unlock(get_lock());
 }
 
-void mark_entry_synced(DiskInterface *disk, cache *cache, journal_entry_t *entry)
+static void mark_entry_synced(DiskInterface *disk, cache *cache, journal_entry_t *entry)
 {
     entry->synced = true;
     
     block_type_t *block_type;
     block_type = ( (block_type_t*) entry - 1 );
-    pthread_mutex_lock(get_lock());
+    lock(get_lock());
     disk_write_block(disk, entry->block_number, block_type);
-    pthread_mutex_unlock(get_lock());
+    unlock(get_lock());
 }
 
 void sync_journal(DiskInterface *disk, cache *cache)
@@ -240,12 +240,12 @@ void sync_journal(DiskInterface *disk, cache *cache)
         prev_entry = (journal_entry_t*)(block_type + 1);
 
         if (*block_type != BLOCK_TYPE_JOURNAL) {
-            fprintf(stderr, "ERROR: Block %llu is not a journal block! type=0x%x\n", sb.journal_start + sb.journal_head, *block_type);
+            FPRINTF("ERROR: Block %lu is not a journal block! type=0x%x\n", sb.journal_start + sb.journal_head, *block_type);
             // Don't proceed - journal is corrupted
             return;
         }
 
-        if (prev_entry->type != UNINITIALIZED && !prev_entry->synced) {
+        if (prev_entry->type != TT_UNINITIALIZED && !prev_entry->synced) {
             printf("Found existing journal entry, syncing...\n");
             sync_entry(disk, cache, prev_entry);
         }
@@ -272,12 +272,12 @@ void mark_journal_synced(DiskInterface *disk, cache *cache)
         prev_entry = (journal_entry_t*)(block_type + 1);
 
         if (*block_type != BLOCK_TYPE_JOURNAL) {
-            fprintf(stderr, "ERROR: Block %llu is not a journal block! type=0x%x\n", sb.journal_start + sb.journal_head, *block_type);
+            FPRINTF("ERROR: Block %lu is not a journal block! type=0x%x\n", sb.journal_start + sb.journal_head, *block_type);
             // Don't proceed - journal is corrupted
             return;
         }
 
-        if (prev_entry->type != UNINITIALIZED && !prev_entry->synced) {
+        if (prev_entry->type != TT_UNINITIALIZED && !prev_entry->synced) {
             printf("Found existing journal entry, marking as synced...\n");
             mark_entry_synced(disk, cache, prev_entry);
         }

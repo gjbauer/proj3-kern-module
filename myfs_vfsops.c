@@ -7,6 +7,7 @@
 #include "myfs.h"
 #include "config.h"
 #include "superblock.h"
+#include "journal.h"
 
 MALLOC_DEFINE(M_MYFS, "myfs", "MyFS filesystem");
 
@@ -102,6 +103,8 @@ myfs_vfs_unmount(struct mount *mp, int mntflags)
 	error = vflush(mp, 0, flags, curthread);
 	if (error)
 		return (error);
+
+	
 
 	/* Free mount data */
 	free(mntdata, M_MYFS);

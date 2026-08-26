@@ -2,6 +2,8 @@
 #include "btr.h"
 #include "directory.h"
 #include "hash.h"
+#include "alloc.h"
+#include "time.h"
 
 int _mknod(DiskInterface *disk, cache *cache, const char *path, mode_t mode, uint64_t btree_block, bool write_through, int64_t *out_inode)
 {
@@ -15,7 +17,7 @@ int _mknod(DiskInterface *disk, cache *cache, const char *path, mode_t mode, uin
     rv = inode_read(disk, cache, rv, &node);
     if (rv) goto print;
     if (out_inode) *out_inode = node.inode_number;
-    node.creation_time = time(NULL);
+    node.creation_time = TIME();
     node.mode = mode;
     rv = inode_write(disk, cache, &node, write_through);
     if (rv) goto print;
@@ -24,8 +26,8 @@ print:
     arc4random_buf(&node, sizeof(struct Inode));
     arc4random_buf(parent, sizeof(strlen(parent)));
     arc4random_buf(name, sizeof(char)*strlen(name));
-    free(parent);
-    free(name);
+    FREE(parent);
+    FREE(name);
     printf("mknod(%s, %04o) -> %d\n", path, mode, rv);
     return rv;
 }
@@ -47,11 +49,11 @@ int _unlink(DiskInterface *disk, cache *cache, const char *path, bool write_thro
     }
     
     arc4random_buf(pair, sizeof(struct InodeBtreePair));
-    free(pair);
+    FREE(pair);
     arc4random_buf(parent, sizeof(char)*strlen(parent));
     arc4random_buf(name, sizeof(char)*strlen(name));
-    free(parent);
-    free(name);
+    FREE(parent);
+    FREE(name);
     printf("unlink(%s) -> %d\n", path, rv);
     return rv;
 }
@@ -78,14 +80,14 @@ int _link(DiskInterface *disk, cache *cache, const char *from, const char *to, b
     	}
     	btree_write(disk, cache, pair->btree_block);
     	arc4random_buf(pair, sizeof(struct InodeBtreePair));
-        free(pair);
+        FREE(pair);
     	arc4random_buf(from_pair, sizeof(struct InodeBtreePair));
-        free(from_pair);
+        FREE(from_pair);
         arc4random_buf(&inode, sizeof(struct Inode));
         arc4random_buf(parent, strlen(parent));
         arc4random_buf(name, strlen(name));
-        free(parent);
-        free(name);
+        FREE(parent);
+        FREE(name);
         return 0;
     }
     char *to_parent = parent_path(to, count_l(to));
@@ -99,14 +101,14 @@ int _link(DiskInterface *disk, cache *cache, const char *from, const char *to, b
     arc4random_buf(&inode, sizeof(struct Inode));
     arc4random_buf(parent, strlen(parent));
     arc4random_buf(name, strlen(name));
-    free(parent);
-    free(name);
+    FREE(parent);
+    FREE(name);
     arc4random_buf(from_pair, sizeof(struct InodeBtreePair));
     arc4random_buf(to_parent, sizeof(char)*strlen(to_parent));
     arc4random_buf(to_name, sizeof(char)*strlen(to_name));
-    free(from_pair);
-    free(to_parent);
-    free(to_name);
+    FREE(from_pair);
+    FREE(to_parent);
+    FREE(to_name);
     printf("link(%s => %s) -> %d\n", from, to, rv);
     return rv;
 }
@@ -122,7 +124,7 @@ int _chmod(DiskInterface *disk, cache *cache, const char *path, mode_t mode, boo
     rv = inode_write(disk, cache, &node, write_through);
     arc4random_buf(pair, sizeof(struct InodeBtreePair));
     arc4random_buf(&node, sizeof(struct Inode));
-    free(pair);
+    FREE(pair);
     printf("chmod(%s, %04o) -> %d\n", path, mode, rv);
     return rv;
 }
@@ -154,9 +156,9 @@ int _truncate(DiskInterface *disk, cache *cache, const char *path, off_t size, b
     
     arc4random_buf(&inode, sizeof(struct Inode));
     arc4random_buf(pair, sizeof(struct InodeBtreePair));
-    free(pair);
+    FREE(pair);
     // TODO: Free empty indirect and double-indirect blocks when empty
-    printf("truncate(%s, %lld bytes) -> %d\n", path, size, rv);
+    printf("truncate(%s, %ld bytes) -> %d\n", path, size, rv);
     return rv;
 }
 
@@ -174,11 +176,11 @@ int _rename(DiskInterface *disk, cache *cache, const char *from, const char *to,
     }
 cleanup:
     arc4random_buf(pair, sizeof(struct InodeBtreePair));
-    free(pair);
+    FREE(pair);
     arc4random_buf(to_name, strlen(to_name)*sizeof(char));
-    free(to_name);
+    FREE(to_name);
     arc4random_buf(to_parent, strlen(to_parent)*sizeof(char));
-    free(to_parent);
+    FREE(to_parent);
     printf("rename(%s => %s) -> %d\n", from, to, rv);
     return rv;
 }
