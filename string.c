@@ -22,9 +22,7 @@ char* parent_path(const char *path, int l)
         return pp;
     }
 
-    const char *start = path;
     const char *end;
-    int segment = 0;
 
     // Find the last slash before the final component
     end = path + strlen(path) - 1;
@@ -77,7 +75,7 @@ char *split(const char *path, int n)
             
             // Copy the segment
             size_t len = end - start;
-            char *buf = (char*)MALLOC(len + 1, sizeof(char));
+            char *buf = (char*)MALLOC( ( len + 1 ) * sizeof(char));
 	    memset(buf, 0, (len + 1) * sizeof(char));
             strncpy(buf, start, len);
             buf[len] = '\0';
