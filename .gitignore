@@ -4,3 +4,4 @@ vnode_if_newproto.h
 vnode_if_typedef.h
 x86
 machine
+opt*.h
