@@ -1,3 +1,9 @@
+#ifdef _KERNEL
+#include "myfs.h"
+#else
+#include <stdlib.h>
+#endif
+#include "alloc.h"
 
 char *STRDUP(const char *str)
 {

@@ -3,11 +3,14 @@
 #ifdef __linux__
 #include <bsd/stdlib.h>
 #endif
+#ifndef _KERNEL
 #include <stdlib.h>
 #include <string.h>
+#endif
 #include "btr.h"
 #include "journal.h"
 #include "string.h"
+#include "alloc.h"
 
 /**
  * FNV-1a hash function implementation for filesystem path hashing
@@ -32,8 +35,7 @@ uint64_t path_hash(const char *path) {
  */
 InodeBtreePair * item_search(DiskInterface* disk, cache *cache, const char *path)
 {
-    InodeBtreePair *pair = malloc(sizeof(struct InodeBtreePair));
-    const char delimiter[] = "/";
+    InodeBtreePair *pair = MALLOC(sizeof(struct InodeBtreePair));
     Superblock sb;
     BTreeNode node;
     char curr_path[PATH_MAX];
@@ -56,7 +58,7 @@ InodeBtreePair * item_search(DiskInterface* disk, cache *cache, const char *path
     
     for (int i=1; i <= count_l(path); i++) {
         token = split(path, i);
-        printf("Searching for %s, hash = %llu\n", token, path_hash(token));
+        printf("Searching for %s, hash = %lu\n", token, path_hash(token));
         //btree_print(disk, cache, node.block_number, 0);
         node_block = btree_search(disk, cache, node.block_number, path_hash(token));
         if (node_block)
@@ -78,14 +80,14 @@ InodeBtreePair * item_search(DiskInterface* disk, cache *cache, const char *path
         }
         else goto wipe_token;
         arc4random_buf(token, strlen(token) * sizeof(char));
-	free(token);
+	FREE(token);
     }
     
-    fprintf(stderr, "ERROR: Path not found!!\n");
+    FPRINTF("ERROR: Path not found!!\n");
     goto return_pair;
 wipe_token:
     arc4random_buf(token, strlen(token) * sizeof(char));
-    free(token);
+    FREE(token);
 return_pair:
     arc4random_buf(&sb, sizeof(struct Superblock));
     arc4random_buf(&node, sizeof(struct BTreeNode));
@@ -97,7 +99,7 @@ void
 print_pair(InodeBtreePair *pair)
 {
     printf("== PAIR PRINT ==\n");
-    printf("inode: %llu\n", pair->inode_number);
-    printf("btree: %llu\n", pair->btree_block);
+    printf("inode: %lu\n", pair->inode_number);
+    printf("btree: %lu\n", pair->btree_block);
     printf("== END PRINT ==\n");
 }
