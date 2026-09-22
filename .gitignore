@@ -6,3 +6,5 @@ x86
 machine
 opt*.h
 test-image.img
+myfs.ko
+export_syms
