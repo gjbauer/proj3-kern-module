@@ -6,17 +6,18 @@
 #include "superblock.h"
 #include "journal.h"
 #include "lock.h"
+#include "alloc.h"
 
 /**
  * Open and memory-map a disk image file for filesystem operations
  * Creates a DiskInterface structure for accessing the disk
  */
-DiskInterface* disk_open(struct mount *mp)
+DiskInterface* disk_open(struct mount *mp, struct vnode *devvp)
 {
-	DiskInterface *disk = (DiskInterface*)malloc(sizeof(struct DiskInterface), M_MYFS, M_WAITOK);
+	DiskInterface *disk = malloc(sizeof(*disk), M_MYFS, M_WAITOK | M_ZERO);
 	disk->mp = mp;
-	disk->vp = mp->mnt_vnodecovered;
-	
+	disk->vp = devvp;
+
 	return disk;
 }
 
@@ -26,7 +27,7 @@ DiskInterface* disk_open(struct mount *mp)
  */
 void disk_close(DiskInterface* disk)
 {
-	free(disk, M_MYFS);
+	FREE(disk);
 }
 
 /**
@@ -37,8 +38,10 @@ void*
 disk_get_block(DiskInterface* disk, int pnum)
 {
 	struct buf *bp;
-	bread(disk->vp, 0, BLOCK_SIZE, NOCRED, &bp);
-	return bp->b_data;
+	int error = bread(disk->vp, pnum, BLOCK_SIZE, NOCRED, &bp);
+	if (error)
+		return NULL;
+	return bp->b_data; 
 }
 
 /**

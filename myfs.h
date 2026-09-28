@@ -1,7 +1,7 @@
 /*-
  * SPDX-License-Identifier: BSD-2-Clause
  *
- * Copyright (c) 2024 Your Name
+ * Copyright (c) 2026 Gabriel Bauer
  */
 
 #ifndef _MYFS_H_
@@ -24,8 +24,8 @@
 #include <sys/dirent.h>
 #include <sys/proc.h>
 #include <sys/ucred.h>
-
-//#include "types.h"
+#include <sys/fcntl.h>
+#include <sys/conf.h>
 
 #include "superblock.h"
 #include "disk.h"
@@ -66,8 +66,8 @@ struct myfs_inode {
 struct myfs_mount {
 	struct mount	*mnt;			/* Back pointer to mount */
 	struct vnode	*mnt_rootvp;		/* Root vnode */
+	struct vnode     *mnt_devvp;
 	Superblock	mnt_sb;		/* Superblock copy */
-	dev_t		mnt_dev;		/* Device mounted */
 	struct g_consumer *mnt_cp;		/* GEOM consumer */
 	/* Add more fields as needed */
 };

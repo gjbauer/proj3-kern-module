@@ -17,7 +17,7 @@
  * @param filename Path to disk image file
  * @return Pointer to DiskInterface or NULL on failure
  */
-DiskInterface* disk_open(struct mount *mp);
+DiskInterface* disk_open(struct mount *mp, struct vnode *devvp);
 
 /**
  * Close disk interface and free resources
