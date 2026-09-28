@@ -8,3 +8,4 @@ opt*.h
 test-image.img
 myfs.ko
 export_syms
+mount_myfs
