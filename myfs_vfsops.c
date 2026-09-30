@@ -54,7 +54,7 @@ myfs_vfs_mount(struct mount *mp)
 		return (EOPNOTSUPP);
 
 	/* 2. Resolve the device path to a device vnode. */
-	NDINIT(&nd, LOOKUP, FOLLOW, UIO_SYSSPACE,
+	NDINIT(&nd, LOOKUP, FOLLOW | LOCKLEAF, UIO_SYSSPACE,
 	       mp->mnt_stat.f_mntfromname);
 	error = namei(&nd);
 	if (error)
