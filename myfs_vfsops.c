@@ -24,9 +24,11 @@ myfs_vfs_mount(struct mount *mp)
 	
 	struct myfs_mount *mntdata;
 	struct nameidata nd;
-	struct vnode *devvp, *rootvp;
+	struct vnode *odevvp, *devvp, *rootvp;
 	struct buf *bp;
-	int error;
+	struct cdev *dev;
+	struct g_consumer *cp;
+	int ronly, error;
 
 	void *optval = NULL;
 	int opt_error = vfs_getopt(mp->mnt_optnew, "from", &optval, NULL);
@@ -38,6 +40,8 @@ myfs_vfs_mount(struct mount *mp)
 		printf("myfs: 'from' option not found (error=%d)\n", opt_error);
 		return (EINVAL);
 	}
+
+	ronly = (mp->mnt_flag & MNT_RDONLY) != 0;
 
 	printf("myfs: mount called, flags=0x%lx, from='%s', fstype='%s', path='%s'\n",
 	mp->mnt_flag,
@@ -55,11 +59,31 @@ myfs_vfs_mount(struct mount *mp)
 	error = namei(&nd);
 	if (error)
 		return (error);
-	devvp = nd.ni_vp;   /* keep this reference */
+	odevvp = nd.ni_vp;   /* keep this reference */
+
+	devvp = mntfs_allocvp(mp, odevvp);
+	dev = devvp->v_rdev;
+	if (atomic_cmpset_acq_ptr((uintptr_t *)&dev->si_mountpt, 0, (uintptr_t)mp) == 0) {
+		mntfs_freevp(devvp);
+		return (EBUSY);
+	}
+
+	g_topology_lock();
+	error = g_vfs_open(devvp, &cp, "myfs", ronly ? 0 : 1);
+	g_topology_unlock();
+	if (error != 0) {
+		atomic_store_rel_ptr((uintptr_t *)&dev->si_mountpt, 0);
+		mntfs_freevp(devvp);
+		return (error);
+	}
+
+	printf("myfs: devvp type = %d (VCHR=%d, VBLK=%d), v_rdev=%p\n",
+	odevvp->v_type, VCHR, VBLK, odevvp->v_rdev);
 
 	/* 3. Read and validate the superblock from the device. */
 	error = bread(devvp, 0, BLOCK_SIZE, NOCRED, &bp);
 	if (error) {
+		printf("bread error: %d", error);
 		vrele(devvp);
 		return (error);
 	}

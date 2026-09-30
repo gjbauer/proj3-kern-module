@@ -27,6 +27,9 @@
 #include <sys/fcntl.h>
 #include <sys/conf.h>
 
+#include <geom/geom.h>
+#include <geom/geom_vfs.h>
+
 #include "superblock.h"
 #include "disk.h"
 #include "print.h"
