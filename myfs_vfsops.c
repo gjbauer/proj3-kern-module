@@ -65,6 +65,7 @@ myfs_vfs_mount(struct mount *mp)
 	dev = devvp->v_rdev;
 	if (atomic_cmpset_acq_ptr((uintptr_t *)&dev->si_mountpt, 0, (uintptr_t)mp) == 0) {
 		mntfs_freevp(devvp);
+		vrele(odevvp);
 		return (EBUSY);
 	}
 
@@ -74,6 +75,7 @@ myfs_vfs_mount(struct mount *mp)
 	if (error != 0) {
 		atomic_store_rel_ptr((uintptr_t *)&dev->si_mountpt, 0);
 		mntfs_freevp(devvp);
+		vrele(odevvp);
 		return (error);
 	}
 
@@ -84,14 +86,16 @@ myfs_vfs_mount(struct mount *mp)
 	error = bread(devvp, 0, BLOCK_SIZE, NOCRED, &bp);
 	if (error) {
 		printf("bread error: %d", error);
-		vrele(devvp);
+		mntfs_freevp(devvp);
+		vrele(odevvp);
 		return (error);
 	}
 
 	block_type_t *bt = (block_type_t *)bp->b_data;
 	if (*bt != BLOCK_TYPE_SUPER) {
 		brelse(bp);
-		vrele(devvp);
+		mntfs_freevp(devvp);
+		vrele(odevvp);
 		return (EIO);
 	}
 	Superblock *sb = (Superblock *)(bt + 1);
@@ -117,7 +121,8 @@ myfs_vfs_mount(struct mount *mp)
 	error = VFS_VGET(mp, sb->root_inode, LK_EXCLUSIVE, &rootvp);
 	if (error) {
 		brelse(bp);
-		vrele(devvp);
+		mntfs_freevp(devvp);
+		vrele(odevvp);
 		free(mntdata, M_MYFS);
 		mp->mnt_data = NULL;
 		return (error);
