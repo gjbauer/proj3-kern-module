@@ -110,7 +110,6 @@ myfs_vfs_mount(struct mount *mp)
 	set_disk(disk_open(mp, devvp));
 	get_disk()->total_blocks = sb->total_blocks;
 
-	mp->mnt_data = mntdata;
 	mp->mnt_stat.f_fsid.val[0] = (int32_t)sb->magic_number;
 	mp->mnt_stat.f_fsid.val[1] = 0;
 	mp->mnt_flag |= MNT_LOCAL;
@@ -123,11 +122,10 @@ myfs_vfs_mount(struct mount *mp)
 		brelse(bp);
 		mntfs_freevp(devvp);
 		vrele(odevvp);
-		free(mntdata, M_MYFS);
-		mp->mnt_data = NULL;
 		return (error);
 	}
 
+	mp->mnt_data = mntdata;
 	mntdata->mnt_rootvp = rootvp;
 	rootvp->v_type = VDIR;
 	/* NOTE: do NOT vput() here — the mount holds this reference. */
