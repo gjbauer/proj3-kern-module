@@ -21,6 +21,8 @@ myfs_vfs_mount(struct mount *mp)
 	printf("myfs: ENTRY from='%s' path='%s'\n",
 	mp->mnt_stat.f_mntfromname,
 	mp->mnt_stat.f_mntonname);
+
+	printf("myfs: sizeof myfs_mount: %ld\n", sizeof(struct myfs_mount));
 	
 	struct myfs_mount *mntdata;
 	struct nameidata nd;
@@ -76,6 +78,9 @@ myfs_vfs_mount(struct mount *mp)
 		atomic_store_rel_ptr((uintptr_t *)&dev->si_mountpt, 0);
 		mntfs_freevp(devvp);
 		vrele(odevvp);
+		g_topology_lock();
+		g_vfs_close(cp);
+		g_topology_unlock();
 		return (error);
 	}
 
@@ -88,6 +93,10 @@ myfs_vfs_mount(struct mount *mp)
 		printf("bread error: %d", error);
 		mntfs_freevp(devvp);
 		vrele(odevvp);
+		g_topology_lock();
+		g_vfs_close(cp);
+		g_topology_unlock();
+		atomic_store_rel_ptr((uintptr_t *)&dev->si_mountpt, 0);
 		return (error);
 	}
 
@@ -96,6 +105,10 @@ myfs_vfs_mount(struct mount *mp)
 		brelse(bp);
 		mntfs_freevp(devvp);
 		vrele(odevvp);
+		g_topology_lock();
+		g_vfs_close(cp);
+		g_topology_unlock();
+		atomic_store_rel_ptr((uintptr_t *)&dev->si_mountpt, 0);
 		return (EIO);
 	}
 	Superblock *sb = (Superblock *)(bt + 1);
@@ -122,6 +135,10 @@ myfs_vfs_mount(struct mount *mp)
 		brelse(bp);
 		mntfs_freevp(devvp);
 		vrele(odevvp);
+		g_topology_lock();
+		g_vfs_close(cp);
+		g_topology_unlock();
+		atomic_store_rel_ptr((uintptr_t *)&dev->si_mountpt, 0);
 		return (error);
 	}
 
