@@ -13,7 +13,7 @@
 #include <sys/fcntl.h>
 #include <sys/conf.h>
 
-MALLOC_DEFINE(M_MYFS, "myfs", MyFS filesystem);
+MALLOC_DEFINE(M_MYFS, "myfs", "MyFS filesystem");
 
 static int
 myfs_vfs_mount(struct mount *mp)
