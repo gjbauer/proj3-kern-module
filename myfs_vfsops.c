@@ -66,6 +66,7 @@ myfs_vfs_mount(struct mount *mp)
 	devvp = mntfs_allocvp(mp, odevvp);
 	dev = devvp->v_rdev;
 	if (atomic_cmpset_acq_ptr((uintptr_t *)&dev->si_mountpt, 0, (uintptr_t)mp) == 0) {
+		vn_lock(devvp, LK_EXCLUSIVE | LK_RETRY);
 		mntfs_freevp(devvp);
 		vrele(odevvp);
 		return (EBUSY);
@@ -76,6 +77,7 @@ myfs_vfs_mount(struct mount *mp)
 	g_topology_unlock();
 	if (error != 0) {
 		atomic_store_rel_ptr((uintptr_t *)&dev->si_mountpt, 0);
+		vn_lock(devvp, LK_EXCLUSIVE | LK_RETRY);
 		mntfs_freevp(devvp);
 		vrele(odevvp);
 		g_topology_lock();
@@ -91,6 +93,7 @@ myfs_vfs_mount(struct mount *mp)
 	error = bread(devvp, 0, BLOCK_SIZE, NOCRED, &bp);
 	if (error) {
 		printf("bread error: %d", error);
+		vn_lock(devvp, LK_EXCLUSIVE | LK_RETRY);
 		mntfs_freevp(devvp);
 		vrele(odevvp);
 		g_topology_lock();
@@ -103,6 +106,7 @@ myfs_vfs_mount(struct mount *mp)
 	block_type_t *bt = (block_type_t *)bp->b_data;
 	if (*bt != BLOCK_TYPE_SUPER) {
 		brelse(bp);
+		vn_lock(devvp, LK_EXCLUSIVE | LK_RETRY);
 		mntfs_freevp(devvp);
 		vrele(odevvp);
 		g_topology_lock();
@@ -133,6 +137,7 @@ myfs_vfs_mount(struct mount *mp)
 	error = VFS_VGET(mp, sb->root_inode, LK_EXCLUSIVE, &rootvp);
 	if (error) {
 		brelse(bp);
+		vn_lock(devvp, LK_EXCLUSIVE | LK_RETRY);
 		mntfs_freevp(devvp);
 		vrele(odevvp);
 		g_topology_lock();
