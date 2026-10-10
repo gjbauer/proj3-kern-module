@@ -84,11 +84,13 @@ myfs_vfs_mount(struct mount *mp)
 		vn_lock(devvp, LK_EXCLUSIVE | LK_RETRY);
 		mntfs_freevp(devvp);
 		vrele(odevvp);
+		g_topology_lock();
 		g_vfs_close(cp);
 		g_topology_unlock();
 		return (error);
 	}
 
+	VOP_UNLOCK(devvp);
 	printf("myfs: devvp type = %d (VCHR=%d, VBLK=%d), v_rdev=%p\n",
 	odevvp->v_type, VCHR, VBLK, odevvp->v_rdev);
 
@@ -99,6 +101,7 @@ myfs_vfs_mount(struct mount *mp)
 		vn_lock(devvp, LK_EXCLUSIVE | LK_RETRY);
 		mntfs_freevp(devvp);
 		vrele(odevvp);
+		g_topology_lock();
 		g_vfs_close(cp);
 		g_topology_unlock();
 		atomic_store_rel_ptr((uintptr_t *)&dev->si_mountpt, 0);
@@ -111,6 +114,7 @@ myfs_vfs_mount(struct mount *mp)
 		vn_lock(devvp, LK_EXCLUSIVE | LK_RETRY);
 		mntfs_freevp(devvp);
 		vrele(odevvp);
+		g_topology_lock();
 		g_vfs_close(cp);
 		g_topology_unlock();
 		atomic_store_rel_ptr((uintptr_t *)&dev->si_mountpt, 0);
@@ -141,6 +145,7 @@ myfs_vfs_mount(struct mount *mp)
 		vn_lock(devvp, LK_EXCLUSIVE | LK_RETRY);
 		mntfs_freevp(devvp);
 		vrele(odevvp);
+		g_topology_lock();
 		g_vfs_close(cp);
 		g_topology_unlock();
 		atomic_store_rel_ptr((uintptr_t *)&dev->si_mountpt, 0);
