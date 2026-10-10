@@ -53,14 +53,18 @@ myfs_vfs_mount(struct mount *mp)
 
 	/* 1. Reject updates up front. */
 	if (mp->mnt_flag & MNT_UPDATE)
+	{
 		return (EOPNOTSUPP);
+	}
 
 	/* 2. Resolve the device path to a device vnode. */
 	NDINIT(&nd, LOOKUP, FOLLOW | LOCKLEAF, UIO_SYSSPACE,
 	       mp->mnt_stat.f_mntfromname);
 	error = namei(&nd);
 	if (error)
+	{
 		return (error);
+	}
 	odevvp = nd.ni_vp;   /* keep this reference */
 
 	devvp = mntfs_allocvp(mp, odevvp);
@@ -80,7 +84,6 @@ myfs_vfs_mount(struct mount *mp)
 		vn_lock(devvp, LK_EXCLUSIVE | LK_RETRY);
 		mntfs_freevp(devvp);
 		vrele(odevvp);
-		g_topology_lock();
 		g_vfs_close(cp);
 		g_topology_unlock();
 		return (error);
@@ -96,7 +99,6 @@ myfs_vfs_mount(struct mount *mp)
 		vn_lock(devvp, LK_EXCLUSIVE | LK_RETRY);
 		mntfs_freevp(devvp);
 		vrele(odevvp);
-		g_topology_lock();
 		g_vfs_close(cp);
 		g_topology_unlock();
 		atomic_store_rel_ptr((uintptr_t *)&dev->si_mountpt, 0);
@@ -109,7 +111,6 @@ myfs_vfs_mount(struct mount *mp)
 		vn_lock(devvp, LK_EXCLUSIVE | LK_RETRY);
 		mntfs_freevp(devvp);
 		vrele(odevvp);
-		g_topology_lock();
 		g_vfs_close(cp);
 		g_topology_unlock();
 		atomic_store_rel_ptr((uintptr_t *)&dev->si_mountpt, 0);
@@ -140,7 +141,6 @@ myfs_vfs_mount(struct mount *mp)
 		vn_lock(devvp, LK_EXCLUSIVE | LK_RETRY);
 		mntfs_freevp(devvp);
 		vrele(odevvp);
-		g_topology_lock();
 		g_vfs_close(cp);
 		g_topology_unlock();
 		atomic_store_rel_ptr((uintptr_t *)&dev->si_mountpt, 0);
