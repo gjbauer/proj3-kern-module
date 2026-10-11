@@ -84,8 +84,6 @@ myfs_vfs_mount(struct mount *mp)
 		g_vfs_close(cp);
 		g_topology_unlock();
 		atomic_store_rel_ptr((uintptr_t *)&dev->si_mountpt, 0);
-		vn_lock(devvp, LK_EXCLUSIVE | LK_RETRY);
-		mntfs_freevp(devvp);
 		vrele(odevvp);
 		return (error);
 	}
@@ -102,8 +100,6 @@ myfs_vfs_mount(struct mount *mp)
 		g_vfs_close(cp);
 		g_topology_unlock();
 		atomic_store_rel_ptr((uintptr_t *)&dev->si_mountpt, 0);
-		vn_lock(devvp, LK_EXCLUSIVE | LK_RETRY);
-		mntfs_freevp(devvp);
 		vrele(odevvp);
 		return (error);
 	}
@@ -115,8 +111,6 @@ myfs_vfs_mount(struct mount *mp)
 		g_vfs_close(cp);
 		g_topology_unlock();
 		atomic_store_rel_ptr((uintptr_t *)&dev->si_mountpt, 0);
-		vn_lock(devvp, LK_EXCLUSIVE | LK_RETRY);
-		mntfs_freevp(devvp);
 		vrele(odevvp);
 		return (EIO);
 	}
@@ -145,10 +139,8 @@ myfs_vfs_mount(struct mount *mp)
 		g_topology_lock();
 		g_vfs_close(cp);
 		g_topology_unlock();
-		atomic_store_rel_ptr((uintptr_t *)&dev->si_mountpt, 0);
-		vn_lock(devvp, LK_EXCLUSIVE | LK_RETRY);
-		mntfs_freevp(devvp);
 		vrele(odevvp);
+		atomic_store_rel_ptr((uintptr_t *)&dev->si_mountpt, 0);
 		return (error);
 	}
 
