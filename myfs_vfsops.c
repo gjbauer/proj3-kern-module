@@ -133,7 +133,8 @@ myfs_vfs_mount(struct mount *mp)
 	mp->mnt_stat.f_iosize = USABLE_BLOCK_SIZE;
 
 	/* 6. Get the root vnode. */
-	error = VFS_VGET(mp, sb->root_inode, LK_EXCLUSIVE, &rootvp);
+	//error = VFS_VGET(mp, sb->root_inode, LK_EXCLUSIVE, &rootvp);
+	error = getnewvnode("myfs", mp, &myfs_vnodeops, &rootvp);
 	if (error) {
 		brelse(bp);
 		g_topology_lock();
@@ -143,6 +144,12 @@ myfs_vfs_mount(struct mount *mp)
 		atomic_store_rel_ptr((uintptr_t *)&dev->si_mountpt, 0);
 		return (error);
 	}
+
+	vn_lock(rootvp, LK_EXCLUSIVE | LK_RETRY);
+
+	Inode inode;
+
+	VOP_UNLOCK(rootvp);
 
 	mp->mnt_data = mntdata;
 	mntdata->mnt_rootvp = rootvp;
