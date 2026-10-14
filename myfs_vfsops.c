@@ -8,6 +8,7 @@
 #include "config.h"
 #include "superblock.h"
 #include "journal.h"
+#include "alloc.h"
 
 #include <sys/namei.h>
 #include <sys/fcntl.h>
@@ -147,7 +148,12 @@ myfs_vfs_mount(struct mount *mp)
 
 	vn_lock(rootvp, LK_EXCLUSIVE | LK_RETRY);
 
-	Inode inode;
+	Inode *inode = MALLOC(sizeof(struct Inode));
+
+	inode_read(get_disk(), NULL, sb->root_inode, inode);
+
+	rootvp->v_data = inode;
+	rootvp->v_type = VDIR;
 
 	VOP_UNLOCK(rootvp);
 
