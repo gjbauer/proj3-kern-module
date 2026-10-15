@@ -155,7 +155,7 @@ myfs_vn_strategy(struct vop_strategy_args *ap)
 
 /* Vnode operations vectors */
 struct vop_vector myfs_vnodeops = {
-	.vop_default =		NULL,
+	.vop_default =		&default_vnodeops,
 	.vop_open =		myfs_vn_open,
 	.vop_close =		myfs_vn_close,
 	.vop_read =		myfs_vn_read,

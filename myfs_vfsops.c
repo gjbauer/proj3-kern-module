@@ -104,7 +104,7 @@ myfs_vfs_mount(struct mount *mp)
 		vrele(odevvp);
 		return (error);
 	}
-
+	
 	block_type_t *bt = (block_type_t *)bp->b_data;
 	if (*bt != BLOCK_TYPE_SUPER) {
 		brelse(bp);
@@ -159,7 +159,6 @@ myfs_vfs_mount(struct mount *mp)
 
 	mp->mnt_data = mntdata;
 	mntdata->mnt_rootvp = rootvp;
-	rootvp->v_type = VDIR;
 	/* NOTE: do NOT vput() here — the mount holds this reference. */
 
 	brelse(bp);
