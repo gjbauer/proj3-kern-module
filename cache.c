@@ -6,18 +6,29 @@
 void*
 get_block(DiskInterface* disk, cache *cache, uint64_t inum, uint64_t pnum)
 {
+	struct buf *bp;
+	void *data;
+	int error;
+
 	vn_lock(disk->vp, LK_SHARED | LK_RETRY);
 
-	struct buf *bp;
-	
 	bp = incore(&disk->vp->v_bufobj, pnum);
+	if (bp == NULL) {
+		error = bread(disk->vp, pnum, BLOCK_SIZE, NOCRED, &bp);
+		if (error) {
+			VOP_UNLOCK(disk->vp);
+			return NULL;
+		}
+	}
 
-	if (bp == NULL)
-		bread(disk->vp, pnum, BLOCK_SIZE, NOCRED, &bp);
-	
+	/* Copy the data out before releasing the buffer */
+	data = malloc(BLOCK_SIZE, M_MYFS, M_WAITOK);
+	memcpy(data, bp->b_data, BLOCK_SIZE);
+
+	brelse(bp);  /* Release the buffer and its lock */
 	VOP_UNLOCK(disk->vp);
 
-	return bp->b_data;
+	return data;
 }
 
 void
@@ -32,8 +43,6 @@ void increase_pin_count(DiskInterface* disk, cache *cache, uint64_t inum, uint64
 
 void decrease_pin_count(DiskInterface* disk, cache *cache, uint64_t inum, uint64_t pnum)
 {
-	struct buf *bp = incore(&disk->vp->v_bufobj, pnum);
-	brelse(bp);
 }
 
 void cache_fsync(DiskInterface* disk, cache *cache, uint64_t inum)
