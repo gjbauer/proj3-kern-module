@@ -8,7 +8,10 @@ get_block(DiskInterface* disk, cache *cache, uint64_t inum, uint64_t pnum)
 {
 	struct buf *bp;
 	
-	bread(disk->vp, 0, BLOCK_SIZE, NOCRED, &bp);
+	bp = incore(&disk->vp->v_bufobj, pnum);
+
+	if (bp == NULL)
+		bread(disk->vp, pnum, BLOCK_SIZE, NOCRED, &bp);
 	
 	return bp->b_data;
 }
