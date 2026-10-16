@@ -6,6 +6,8 @@
 void*
 get_block(DiskInterface* disk, cache *cache, uint64_t inum, uint64_t pnum)
 {
+	vn_lock(disk->vp, LK_SHARED | LK_RETRY);
+
 	struct buf *bp;
 	
 	bp = incore(&disk->vp->v_bufobj, pnum);
@@ -13,6 +15,8 @@ get_block(DiskInterface* disk, cache *cache, uint64_t inum, uint64_t pnum)
 	if (bp == NULL)
 		bread(disk->vp, pnum, BLOCK_SIZE, NOCRED, &bp);
 	
+	VOP_UNLOCK(disk->vp);
+
 	return bp->b_data;
 }
 
