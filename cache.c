@@ -10,23 +10,14 @@ get_block(DiskInterface* disk, cache *cache, uint64_t inum, uint64_t pnum)
 	void *data;
 	int error;
 
-	vn_lock(disk->vp, LK_SHARED | LK_RETRY);
+	error = bread(disk->vp, pnum, BLOCK_SIZE, NOCRED, &bp);
+	if (error != 0)
+		return NULL;
 
-	bp = incore(&disk->vp->v_bufobj, pnum);
-	if (bp == NULL) {
-		error = bread(disk->vp, pnum, BLOCK_SIZE, NOCRED, &bp);
-		if (error) {
-			VOP_UNLOCK(disk->vp);
-			return NULL;
-		}
-	}
-
-	/* Copy the data out before releasing the buffer */
 	data = malloc(BLOCK_SIZE, M_MYFS, M_WAITOK);
 	memcpy(data, bp->b_data, BLOCK_SIZE);
 
-	brelse(bp);  /* Release the buffer and its lock */
-	VOP_UNLOCK(disk->vp);
+	brelse(bp);
 
 	return data;
 }
