@@ -123,6 +123,8 @@ myfs_vfs_mount(struct mount *mp)
 	mntdata->mnt_devvp = devvp;
 	memcpy(&mntdata->mnt_sb, sb, USABLE_BLOCK_SIZE);
 
+	BUF_ASSERT_LOCKED(bp);
+
 	brelse(bp);
 
 	/* 5. Hand the device vnode to the HAL. */

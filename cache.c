@@ -17,6 +17,8 @@ get_block(DiskInterface* disk, cache *cache, uint64_t inum, uint64_t pnum)
 	data = malloc(BLOCK_SIZE, M_MYFS, M_WAITOK);
 	memcpy(data, bp->b_data, BLOCK_SIZE);
 
+	BUF_ASSERT_LOCKED(bp);
+
 	brelse(bp);
 
 	return data;
