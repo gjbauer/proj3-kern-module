@@ -107,7 +107,7 @@ myfs_vfs_mount(struct mount *mp)
 	
 	block_type_t *bt = (block_type_t *)bp->b_data;
 	if (*bt != BLOCK_TYPE_SUPER) {
-		brelse(bp);
+		bqrelse(bp);
 		g_topology_lock();
 		g_vfs_close(cp);
 		g_topology_unlock();
@@ -123,7 +123,7 @@ myfs_vfs_mount(struct mount *mp)
 	mntdata->mnt_devvp = devvp;
 	memcpy(&mntdata->mnt_sb, sb, USABLE_BLOCK_SIZE);
 
-	BUF_ASSERT_LOCKED(bp);
+	bp->b_flags |= B_INVAL | B_NOCACHE;
 
 	brelse(bp);
 
@@ -141,7 +141,6 @@ myfs_vfs_mount(struct mount *mp)
 	//error = VFS_VGET(mp, sb->root_inode, LK_EXCLUSIVE, &rootvp);
 	error = getnewvnode("myfs", mp, &myfs_vnodeops, &rootvp);
 	if (error) {
-		brelse(bp);
 		g_topology_lock();
 		g_vfs_close(cp);
 		g_topology_unlock();
@@ -154,7 +153,7 @@ myfs_vfs_mount(struct mount *mp)
 
 	Inode *inode = MALLOC(sizeof(struct Inode));
 
-	inode_read(get_disk(), NULL, sb->root_inode, inode);
+	//inode_read(get_disk(), NULL, sb->root_inode, inode);
 
 	rootvp->v_data = inode;
 	rootvp->v_type = VDIR;
