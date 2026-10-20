@@ -12,6 +12,7 @@ int inode_read(DiskInterface* disk, cache *cache, uint64_t inode_number, Inode* 
     superblock_read(disk, cache, &sb);
     int inode_per_page = USABLE_BLOCK_SIZE / sizeof(Inode);
     uint64_t inode_page = inode_number / inode_per_page;
+    printf("sb.inode_bitmap = %ld\n", sb.inode_bitmap);
     block_type_t *block_type = get_block(disk, cache, 0, sb.inode_bitmap + calculate_inode_bitmap_size(&sb) + inode_page);
     if (*block_type != BLOCK_TYPE_INODE)
     {

@@ -16,6 +16,7 @@ int superblock_read(DiskInterface* disk, cache *cache, Superblock* superblock)
         return -1;
     }
     memcpy(superblock, (Superblock*) ( block_type + 1 ), sizeof(Superblock));
+    decrease_pin_count(disk, cache, 0, 0);
     return 0;
 }
 
@@ -29,13 +30,12 @@ int superblock_write(DiskInterface* disk, cache *cache, const Superblock* superb
     	lock(get_lock());
         disk_write_block(disk, 0, block_type);
         unlock(get_lock());
-        if (cache) decrease_pin_count(disk, cache, 0, 0);
     }
     else
     {
         write_block(disk, cache, block_type, 0, 0);
-        if (cache) increase_pin_count(disk, cache, 0, 0);
     }
+    decrease_pin_count(disk, cache, 0, 0);
     return 0;
 }
 
