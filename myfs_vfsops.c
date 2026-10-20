@@ -123,8 +123,6 @@ myfs_vfs_mount(struct mount *mp)
 	mntdata->mnt_devvp = devvp;
 	memcpy(&mntdata->mnt_sb, sb, USABLE_BLOCK_SIZE);
 
-	bp->b_flags |= B_INVAL | B_NOCACHE;
-
 	brelse(bp);
 
 	/* 5. Hand the device vnode to the HAL. */
@@ -138,7 +136,6 @@ myfs_vfs_mount(struct mount *mp)
 	mp->mnt_stat.f_iosize = USABLE_BLOCK_SIZE;
 
 	/* 6. Get the root vnode. */
-	//error = VFS_VGET(mp, sb->root_inode, LK_EXCLUSIVE, &rootvp);
 	error = getnewvnode("myfs", mp, &myfs_vnodeops, &rootvp);
 	if (error) {
 		g_topology_lock();
@@ -153,7 +150,7 @@ myfs_vfs_mount(struct mount *mp)
 
 	Inode *inode = MALLOC(sizeof(struct Inode));
 
-	//inode_read(get_disk(), NULL, sb->root_inode, inode);
+	inode_read(get_disk(), NULL, sb->root_inode, inode);
 
 	rootvp->v_data = inode;
 	rootvp->v_type = VDIR;
@@ -164,7 +161,6 @@ myfs_vfs_mount(struct mount *mp)
 	mntdata->mnt_rootvp = rootvp;
 	/* NOTE: do NOT vput() here — the mount holds this reference. */
 
-	brelse(bp);
 	printf("myfs: mounted successfully\n");
 	return (0);
 }
