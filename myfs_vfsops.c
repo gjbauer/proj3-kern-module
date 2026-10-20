@@ -157,6 +157,7 @@ myfs_vfs_mount(struct mount *mp)
 
 	error = insmntque(rootvp, mp);
 	if (error) {
+		vgone(rootvp);
 		g_topology_lock();
 		g_vfs_close(cp);
 		g_topology_unlock();
@@ -166,8 +167,6 @@ myfs_vfs_mount(struct mount *mp)
 	}
 
 	vn_set_state(rootvp, VSTATE_CONSTRUCTED);
-
-	VOP_UNLOCK(rootvp);
 
 	mp->mnt_data = mntdata;
 	mntdata->mnt_rootvp = rootvp;
