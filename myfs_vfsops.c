@@ -155,6 +155,18 @@ myfs_vfs_mount(struct mount *mp)
 	rootvp->v_data = inode;
 	rootvp->v_type = VDIR;
 
+	error = insmntque(rootvp, mp);
+	if (error) {
+		g_topology_lock();
+		g_vfs_close(cp);
+		g_topology_unlock();
+		vrele(odevvp);
+		atomic_store_rel_ptr((uintptr_t *)&dev->si_mountpt, 0);
+		return (error);
+	}
+
+	vn_set_state(rootvp, VSTATE_CONSTRUCTED);
+
 	VOP_UNLOCK(rootvp);
 
 	mp->mnt_data = mntdata;
