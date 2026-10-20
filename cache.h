@@ -18,12 +18,6 @@ void
 write_block(DiskInterface* disk, cache *cache, void *buf, int64_t inum, uint64_t pnum);
 
 /**
- * Increases pin count on a block by 1
- */
-void
-increase_pin_count(DiskInterface* disk, cache *cache, uint64_t inum, uint64_t pnum);
-
-/**
  * Decreases pin count on a block by 1
  */
 void

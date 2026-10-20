@@ -30,10 +30,6 @@ write_block(DiskInterface* disk, cache *cache, void *buf, int64_t inum, uint64_t
 
 }
 
-void increase_pin_count(DiskInterface* disk, cache *cache, uint64_t inum, uint64_t pnum)
-{
-}
-
 void decrease_pin_count(DiskInterface* disk, cache *cache, uint64_t inum, uint64_t pnum)
 {
 	struct buf *bp = incore(&disk->vp->v_bufobj, pnum);
