@@ -2,4 +2,4 @@
 
 doas umount /mnt
 
-doas kldunload myfs.ko
+doas kldunload myfs.ko.full
