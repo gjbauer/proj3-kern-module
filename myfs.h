@@ -35,6 +35,7 @@
 #include "print.h"
 #include "lock.h"
 #include "btr.h"
+#include "alloc.h"
 
 MALLOC_DECLARE(M_MYFS);
 

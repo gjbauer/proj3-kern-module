@@ -4,6 +4,7 @@
 #include <string.h>
 #include "disk.h"
 #include "lock.h"
+#include "alloc.h"
 
 int inode_read(DiskInterface* disk, cache *cache, uint64_t inode_number, Inode* inode)
 {
@@ -25,7 +26,11 @@ int inode_read(DiskInterface* disk, cache *cache, uint64_t inode_number, Inode* 
     node = node + ( inode_number % inode_per_page );
     
     memcpy(inode, node, sizeof(struct Inode));
-    
+
+#ifdef _KERNEL
+    FREE(block_type);
+#endif
+
     rv = 0;
     printf("inode_read: inode=%lu, mode=%o\n", inode_number, inode->mode);
 clear_stack:

@@ -7,21 +7,21 @@ void*
 get_block(DiskInterface* disk, cache *cache, uint64_t inum, uint64_t pnum)
 {
 	struct buf *bp;
-	//void *data;
+	void *data;
 	int error;
 
 	error = bread(disk->vp, pnum, BLOCK_SIZE, NOCRED, &bp);
 	if (error != 0)
 		return NULL;
 
-	//data = malloc(BLOCK_SIZE, M_MYFS, M_WAITOK);
-	//memcpy(data, bp->b_data, BLOCK_SIZE);
+	data = malloc(BLOCK_SIZE, M_MYFS, M_WAITOK);
+	memcpy(data, bp->b_data, BLOCK_SIZE);
 
-	//BUF_ASSERT_LOCKED(bp);
+	BUF_ASSERT_LOCKED(bp);
 
-	//brelse(bp);
+	brelse(bp);
 
-	return bp->b_data;
+	return data;
 }
 
 void
@@ -32,8 +32,6 @@ write_block(DiskInterface* disk, cache *cache, void *buf, int64_t inum, uint64_t
 
 void decrease_pin_count(DiskInterface* disk, cache *cache, uint64_t inum, uint64_t pnum)
 {
-	struct buf *bp = incore(&disk->vp->v_bufobj, pnum);
-	brelse(bp);
 }
 
 void cache_fsync(DiskInterface* disk, cache *cache, uint64_t inum)

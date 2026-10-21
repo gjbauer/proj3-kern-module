@@ -16,6 +16,11 @@ int superblock_read(DiskInterface* disk, cache *cache, Superblock* superblock)
         return -1;
     }
     memcpy(superblock, (Superblock*) ( block_type + 1 ), sizeof(Superblock));
+
+#ifdef _KERNEL
+    FREE(block_type);
+#endif
+
     decrease_pin_count(disk, cache, 0, 0);
     return 0;
 }
