@@ -121,7 +121,7 @@ myfs_vfs_mount(struct mount *mp)
 	mntdata = malloc(sizeof(*mntdata), M_MYFS, M_WAITOK | M_ZERO);
 	mntdata->mnt       = mp;
 	mntdata->mnt_devvp = devvp;
-	memcpy(&mntdata->mnt_sb, sb, USABLE_BLOCK_SIZE);
+	memcpy(&mntdata->mnt_sb, sb, sizeof(struct Superblock));
 
 	brelse(bp);
 
