@@ -170,7 +170,6 @@ myfs_vfs_mount(struct mount *mp)
 
 	mp->mnt_data = mntdata;
 	mntdata->mnt_rootvp = rootvp;
-	vref(rootvp);
 	/* NOTE: do NOT vput() here — the mount holds this reference. */
 
 	printf("myfs: mounted successfully\n");
@@ -188,7 +187,7 @@ myfs_vfs_unmount(struct mount *mp, int mntflags)
 
 	if (mntdata->mnt_rootvp) {
 		vrele(mntdata->mnt_rootvp);
-		mntdata->mnt_rootvp = NULL;
+		//mntdata->mnt_rootvp = NULL;
 	}
 
 	error = vflush(mp, 0, flags, curthread);
