@@ -27,13 +27,12 @@ int inode_read(DiskInterface* disk, cache *cache, uint64_t inode_number, Inode* 
     
     memcpy(inode, node, sizeof(struct Inode));
 
-#ifdef _KERNEL
-    FREE(block_type);
-#endif
-
     rv = 0;
     printf("inode_read: inode=%lu, mode=%o\n", inode_number, inode->mode);
 clear_stack:
+#ifdef _KERNEL
+    FREE(block_type);
+#endif
     decrease_pin_count(disk, cache, 0, sb.inode_bitmap + calculate_inode_bitmap_size(&sb) + inode_page);
     arc4random_buf(&sb, sizeof(struct Superblock));
     return rv;

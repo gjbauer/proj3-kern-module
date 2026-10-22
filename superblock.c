@@ -10,19 +10,21 @@
 // Superblock operations
 int superblock_read(DiskInterface* disk, cache *cache, Superblock* superblock)
 {
-    block_type_t *block_type = (block_type_t*)get_block(disk, cache, 0, 0);
-    if (*block_type != BLOCK_TYPE_SUPER) {
-        FPRINTF("ERROR: Not a valid superblock!\n");
-        return -1;
-    }
-    memcpy(superblock, (Superblock*) ( block_type + 1 ), sizeof(Superblock));
+	int rv = -1;
+	block_type_t *block_type = (block_type_t*)get_block(disk, cache, 0, 0);
+	if (*block_type != BLOCK_TYPE_SUPER) {
+		FPRINTF("ERROR: Not a valid superblock!\n");
+		goto cleanup;
+	}
+	memcpy(superblock, (Superblock*) ( block_type + 1 ), sizeof(Superblock));
+	rv = 0;
 
+cleanup:
 #ifdef _KERNEL
-    FREE(block_type);
+	FREE(block_type);
 #endif
-
-    decrease_pin_count(disk, cache, 0, 0);
-    return 0;
+	decrease_pin_count(disk, cache, 0, 0);
+	return rv;
 }
 
 int superblock_write(DiskInterface* disk, cache *cache, const Superblock* superblock, bool write_through)
