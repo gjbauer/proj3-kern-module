@@ -10,7 +10,7 @@ get_block(DiskInterface* disk, cache *cache, uint64_t inum, uint64_t pnum)
 	void *data;
 	int error;
 
-	error = bread(disk->vp, pnum, BLOCK_SIZE, NOCRED, &bp);
+	error = bread(disk->vp, pnum * (BLOCK_SIZE / DEV_BSIZE), BLOCK_SIZE, NOCRED, &bp);
 	if (error != 0)
 		return NULL;
 
