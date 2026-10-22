@@ -153,6 +153,16 @@ myfs_vn_strategy(struct vop_strategy_args *ap)
 	return (EOPNOTSUPP);
 }
 
+static int
+myfs_reclaim(struct vop_reclaim_args *ap)
+{
+	struct vnode *vp = ap->a_vp;
+	if (vp->v_data)
+		FREE(vp->v_data);
+	vp->v_data = NULL;
+	return (0);
+}
+
 /* Vnode operations vectors */
 struct vop_vector myfs_vnodeops = {
 	.vop_default =		&default_vnodeops,
@@ -164,5 +174,6 @@ struct vop_vector myfs_vnodeops = {
 	.vop_lookup =		myfs_vn_lookup,
 	.vop_readdir =		myfs_vn_readdir,
 	.vop_strategy =		myfs_vn_strategy,
+	.vop_reclaim =		myfs_reclaim,
 };
 VFS_VOP_VECTOR_REGISTER(myfs_vnodeops);

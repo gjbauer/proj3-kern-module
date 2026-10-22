@@ -187,8 +187,12 @@ myfs_vfs_unmount(struct mount *mp, int mntflags)
 
 	if (mntdata->mnt_rootvp) {
 		vrele(mntdata->mnt_rootvp);
-		//mntdata->mnt_rootvp = NULL;
+		mntdata->mnt_rootvp = NULL;
 	}
+
+	printf("rootvp->v_usecount = %d\n", mntdata->mnt_rootvp->v_usecount);
+
+	VOP_UNLOCK(mntdata->mnt_rootvp);
 
 	error = vflush(mp, 0, flags, curthread);
 	if (error)
