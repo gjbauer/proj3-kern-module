@@ -6,6 +6,7 @@ x86
 machine
 opt*.h
 test-image.img
-myfs.ko
+myfs.ko*
 export_syms
 mount_myfs
+*.tmp

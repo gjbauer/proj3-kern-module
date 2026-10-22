@@ -66,7 +66,7 @@ myfs_vfs_mount(struct mount *mp)
 	{
 		return (error);
 	}
-	odevvp = nd.ni_vp;   /* keep this reference */
+	odevvp = nd.ni_vp;
 
 	devvp = mntfs_allocvp(mp, odevvp);
 	dev = devvp->v_rdev;
@@ -89,9 +89,11 @@ myfs_vfs_mount(struct mount *mp)
 		return (error);
 	}
 
+	vrele(odevvp);
+	
 	VOP_UNLOCK(devvp);
 	printf("myfs: devvp type = %d (VCHR=%d, VBLK=%d), v_rdev=%p\n",
-	odevvp->v_type, VCHR, VBLK, odevvp->v_rdev);
+	devvp->v_type, VCHR, VBLK, devvp->v_rdev);
 
 	/* 3. Read and validate the superblock from the device. */
 	error = bread(devvp, 0, BLOCK_SIZE, NOCRED, &bp);
@@ -101,18 +103,16 @@ myfs_vfs_mount(struct mount *mp)
 		g_vfs_close(cp);
 		g_topology_unlock();
 		atomic_store_rel_ptr((uintptr_t *)&dev->si_mountpt, 0);
-		vrele(odevvp);
 		return (error);
 	}
 	
 	block_type_t *bt = (block_type_t *)bp->b_data;
 	if (*bt != BLOCK_TYPE_SUPER) {
-		bqrelse(bp);
+		brelse(bp);
 		g_topology_lock();
 		g_vfs_close(cp);
 		g_topology_unlock();
 		atomic_store_rel_ptr((uintptr_t *)&dev->si_mountpt, 0);
-		vrele(odevvp);
 		return (EIO);
 	}
 	Superblock *sb = (Superblock *)(bt + 1);
@@ -141,7 +141,6 @@ myfs_vfs_mount(struct mount *mp)
 		g_topology_lock();
 		g_vfs_close(cp);
 		g_topology_unlock();
-		vrele(odevvp);
 		atomic_store_rel_ptr((uintptr_t *)&dev->si_mountpt, 0);
 		return (error);
 	}
@@ -161,15 +160,17 @@ myfs_vfs_mount(struct mount *mp)
 		g_topology_lock();
 		g_vfs_close(cp);
 		g_topology_unlock();
-		vrele(odevvp);
 		atomic_store_rel_ptr((uintptr_t *)&dev->si_mountpt, 0);
 		return (error);
 	}
 
 	vn_set_state(rootvp, VSTATE_CONSTRUCTED);
 
+	VOP_UNLOCK(rootvp);
+
 	mp->mnt_data = mntdata;
 	mntdata->mnt_rootvp = rootvp;
+	vref(rootvp);
 	/* NOTE: do NOT vput() here — the mount holds this reference. */
 
 	printf("myfs: mounted successfully\n");
@@ -185,6 +186,11 @@ myfs_vfs_unmount(struct mount *mp, int mntflags)
 	if (mntflags & MNT_FORCE)
 		flags |= FORCECLOSE;
 
+	if (mntdata->mnt_rootvp) {
+		vrele(mntdata->mnt_rootvp);
+		mntdata->mnt_rootvp = NULL;
+	}
+
 	error = vflush(mp, 0, flags, curthread);
 	if (error)
 		return (error);
@@ -194,11 +200,11 @@ myfs_vfs_unmount(struct mount *mp, int mntflags)
 		set_disk(NULL);
 	}
 	if (mntdata->mnt_devvp)
-		vrele(mntdata->mnt_devvp);
+		mntfs_freevp(mntdata->mnt_devvp);
 
 	free(mntdata, M_MYFS);
 	mp->mnt_data = NULL;
-
+	
 	printf("myfs: unmounted successfully\n");
 	return (0);
 }
@@ -207,10 +213,13 @@ static int
 myfs_vfs_root(struct mount *mp, int flags, struct vnode **vpp)
 {
 	struct myfs_mount *mntdata = mp->mnt_data;
+	
+	printf("myfs_vfs_root: flags=0x%x, rootvp state=%d\n",
+		flags, VOP_ISLOCKED(mntdata->mnt_rootvp));
 
 	/* vfs_root must hand back a vnode with a reference. */
 	*vpp = mntdata->mnt_rootvp;
-	vref(*vpp);
+	vn_lock(*vpp, flags | LK_RETRY);
 	return (0);
 }
 
