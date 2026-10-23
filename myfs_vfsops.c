@@ -80,9 +80,6 @@ myfs_vfs_mount(struct mount *mp)
 	error = g_vfs_open(devvp, &cp, "myfs", ronly ? 0 : 1);
 	g_topology_unlock();
 	if (error != 0) {
-		g_topology_lock();
-		g_vfs_close(cp);
-		g_topology_unlock();
 		atomic_store_rel_ptr((uintptr_t *)&dev->si_mountpt, 0);
 		vrele(odevvp);
 		return (error);
@@ -121,6 +118,7 @@ myfs_vfs_mount(struct mount *mp)
 	mntdata->mnt       = mp;
 	mntdata->mnt_devvp = devvp;
 	memcpy(&mntdata->mnt_sb, sb, sizeof(struct Superblock));
+	mntdata->mnt_cp	= cp;
 
 	brelse(bp);
 
@@ -199,6 +197,10 @@ myfs_vfs_unmount(struct mount *mp, int mntflags)
 		atomic_store_rel_ptr((uintptr_t *)&mntdata->mnt_devvp->v_rdev->si_mountpt, 0);
 		mntfs_freevp(mntdata->mnt_devvp);
 	}
+	
+	g_topology_lock();
+	g_vfs_close(mntdata->mnt_cp);
+	g_topology_unlock();
 
 	free(mntdata, M_MYFS);
 	mp->mnt_data = NULL;
