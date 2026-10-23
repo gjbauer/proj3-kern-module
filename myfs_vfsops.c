@@ -71,7 +71,6 @@ myfs_vfs_mount(struct mount *mp)
 	devvp = mntfs_allocvp(mp, odevvp);
 	dev = devvp->v_rdev;
 	if (atomic_cmpset_acq_ptr((uintptr_t *)&dev->si_mountpt, 0, (uintptr_t)mp) == 0) {
-		vn_lock(devvp, LK_EXCLUSIVE | LK_RETRY);
 		mntfs_freevp(devvp);
 		vrele(odevvp);
 		return (EBUSY);
@@ -185,8 +184,6 @@ myfs_vfs_unmount(struct mount *mp, int mntflags)
 	if (mntflags & MNT_FORCE)
 		flags |= FORCECLOSE;
 
-	printf("rootvp->v_usecount = %d\n", mntdata->mnt_rootvp->v_usecount);
-
 	error = vflush(mp, 0, flags, curthread);
 	if (error)
 		return (error);
@@ -198,8 +195,10 @@ myfs_vfs_unmount(struct mount *mp, int mntflags)
 	
 	vn_lock(mntdata->mnt_devvp, LK_EXCLUSIVE | LK_RETRY);
 
-	if (mntdata->mnt_devvp)
+	if (mntdata->mnt_devvp) {
+		atomic_store_rel_ptr((uintptr_t *)&mntdata->mnt_devvp->v_rdev->si_mountpt, 0);
 		mntfs_freevp(mntdata->mnt_devvp);
+	}
 
 	free(mntdata, M_MYFS);
 	mp->mnt_data = NULL;
