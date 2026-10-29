@@ -94,6 +94,7 @@ static int
 myfs_vn_lookup(struct vop_lookup_args *ap)
 {
 	/* Directory lookup implementation would go here */
+	printf("myfs: lookup call\n");
 	return (ENOENT);
 }
 

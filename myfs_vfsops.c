@@ -143,6 +143,7 @@ myfs_vfs_mount(struct mount *mp)
 	}
 
 	vn_lock(rootvp, LK_EXCLUSIVE | LK_RETRY);
+	VN_LOCK_AREC(rootvp);
 
 	Inode *inode = MALLOC(sizeof(struct Inode));
 
@@ -163,6 +164,8 @@ myfs_vfs_mount(struct mount *mp)
 
 	vn_set_state(rootvp, VSTATE_CONSTRUCTED);
 
+	vhold(rootvp);
+
 	VOP_UNLOCK(rootvp);
 
 	mp->mnt_data = mntdata;
@@ -181,6 +184,12 @@ myfs_vfs_unmount(struct mount *mp, int mntflags)
 
 	if (mntflags & MNT_FORCE)
 		flags |= FORCECLOSE;
+
+	if (mntdata->mnt_rootvp) {
+		vrele(mntdata->mnt_rootvp);
+		vdrop(mntdata->mnt_rootvp);
+		mntdata->mnt_rootvp = NULL;
+	}
 
 	error = vflush(mp, 0, flags, curthread);
 	if (error)
@@ -212,14 +221,13 @@ myfs_vfs_unmount(struct mount *mp, int mntflags)
 static int
 myfs_vfs_root(struct mount *mp, int flags, struct vnode **vpp)
 {
-	struct myfs_mount *mntdata = mp->mnt_data;
-	
-	printf("myfs_vfs_root: flags=0x%x, rootvp state=%d\n",
-		flags, VOP_ISLOCKED(mntdata->mnt_rootvp));
+	struct vnode *nvp;
+	int error;
 
-	/* vfs_root must hand back a vnode with a reference. */
-	*vpp = mntdata->mnt_rootvp;
-	vn_lock(*vpp, flags | LK_RETRY);
+	error = VFS_VGET(mp, 0, flags, &nvp);
+	if (error)
+		return (error);
+	*vpp = nvp;
 	return (0);
 }
 
@@ -254,13 +262,111 @@ myfs_uninit(struct vfsconf *vfsp)
 	return (0);
 }
 
+static int
+myfs_vget(struct mount *mp,
+	ino_t ino,
+	int flags,
+	struct vnode **vpp)
+{
+	Inode *ip;
+	struct vnode *vp;
+	int error;
+
+	MPASS( (flags & LK_EXCLUSIVE) != 0 );
+
+	error = vfs_hash_get(mp, ino, flags, curthread, vpp, NULL, NULL);
+	if (error != 0)
+		return (error);
+	if (*vpp != NULL) {
+		if (!VN_IS_DOOMED(*vpp))
+			return (0);
+		vgone(*vpp);
+		vput(*vpp);
+	}
+
+	/*
+	 * We must promote to an exclusive lock for vnode creation.  This
+	 * can happen if lookup is passed LOCKSHARED.
+	 */
+	if ((flags & LK_TYPE_MASK) == LK_SHARED) {
+		flags &= ~LK_TYPE_MASK;
+		flags |= LK_EXCLUSIVE;
+	}
+
+	/*
+	 * We do not lock vnode creation as it is believed to be too
+	 * expensive for such rare case as simultaneous creation of vnode
+	 * for same ino by different processes. We just allow them to race
+	 * and check later to decide who wins. Let the race begin!
+	 */
+
+	ip = MALLOC(sizeof(struct Inode));
+
+	/* Allocate a new vnode/inode. */
+	error = getnewvnode("myfs", mp, &myfs_vnodeops, &vp);
+	if (error) {
+		*vpp = NULL;
+		FREE(ip);
+		return (error);
+	}
+	/*
+	 * FFS supports recursive locking.
+	 */
+	lockmgr(vp->v_vnlock, LK_EXCLUSIVE | LK_NOWITNESS, NULL);
+	VN_LOCK_AREC(vp);
+	vp->v_data = ip;
+	vp->v_bufobj.bo_bsize = BLOCK_SIZE;
+
+	error = insmntque(vp, mp);
+	if (error != 0) {
+		FREE(ip);
+		*vpp = NULL;
+		return (error);
+	}
+	vp->v_vflag &= ~VV_FORCEINSMQ;
+	error = vfs_hash_insert(vp, ino, flags, curthread, vpp, NULL, NULL);
+	if (error != 0)
+		return (error);
+	if (*vpp != NULL) {
+		return (0);
+	}
+
+	/* Read the disk contents for the inode, copy into the inode. */
+	error = inode_read(get_disk(), NULL, ino, ip);
+	if (error != 0) {
+		/*
+		 * The inode does not contain anything useful, so it
+		 * would be misleading to leave it on its hash chain.
+		 * With mode still zero, it will be unlinked and
+		 * returned to the free list by vput().
+		 */
+		vgone(vp);
+		vput(vp);
+		*vpp = NULL;
+		return (error);
+	}
+
+	/*
+	 * Finish inode initialization.
+	 */
+	if (vp->v_type != VFIFO) {
+		/* NBtrtFS supports shared locking for all files except fifos. */
+		VN_LOCK_ASHARE(vp);
+	}
+
+	vn_set_state(vp, VSTATE_CONSTRUCTED);
+	*vpp = vp;
+	return (0);
+}
+
 struct vfsops myfs_vfsops = {
-	.vfs_mount  = myfs_vfs_mount,
-	.vfs_unmount = myfs_vfs_unmount,
-	.vfs_root   = myfs_vfs_root,
-	.vfs_statfs = myfs_vfs_statfs,
-	.vfs_init   = myfs_init,
-	.vfs_uninit = myfs_uninit,
+	.vfs_mount	= myfs_vfs_mount,
+	.vfs_unmount	= myfs_vfs_unmount,
+	.vfs_root	= myfs_vfs_root,
+	.vfs_statfs	= myfs_vfs_statfs,
+	.vfs_init	= myfs_init,
+	.vfs_uninit	= myfs_uninit,
+	.vfs_vget	= myfs_vget,
 };
 
 VFS_SET(myfs_vfsops, myfs, 0);
