@@ -278,6 +278,8 @@ myfs_vget(struct mount *mp,
 	if (error != 0)
 		return (error);
 	if (*vpp != NULL) {
+		printf("myfs_vget: found cached vnode %p for ino %lu, doomed=%ld\n",
+			*vpp, ino, VN_IS_DOOMED(*vpp));
 		if (!VN_IS_DOOMED(*vpp))
 			return (0);
 		vgone(*vpp);
@@ -301,6 +303,33 @@ myfs_vget(struct mount *mp,
 	 */
 
 	ip = MALLOC(sizeof(struct Inode));
+	
+	/* Read the disk contents for the inode, copy into the inode. */
+	error = inode_read(get_disk(), NULL, ino, ip);
+	if (error != 0) {
+		/*
+		 * The inode does not contain anything useful, so it
+		 * would be misleading to leave it on its hash chain.
+		 * With mode still zero, it will be unlinked and
+		 * returned to the free list by vput().
+		 */
+		vgone(vp);
+		vput(vp);
+		*vpp = NULL;
+		return (error);
+	}
+
+	/* Translate inode mode to vnode type */
+	switch (ip->mode & S_IFMT) {
+	case S_IFDIR:  vp->v_type = VDIR;  break;
+	case S_IFREG:  vp->v_type = VREG;  break;
+	case S_IFLNK:  vp->v_type = VLNK;  break;
+	case S_IFCHR:  vp->v_type = VCHR;  break;
+	case S_IFBLK:  vp->v_type = VBLK;  break;
+	case S_IFIFO:  vp->v_type = VFIFO; break;
+	case S_IFSOCK: vp->v_type = VSOCK; break;
+	default:       vp->v_type = VNON;  break;
+	}
 
 	/* Allocate a new vnode/inode. */
 	error = getnewvnode("myfs", mp, &myfs_vnodeops, &vp);
@@ -329,21 +358,6 @@ myfs_vget(struct mount *mp,
 		return (error);
 	if (*vpp != NULL) {
 		return (0);
-	}
-
-	/* Read the disk contents for the inode, copy into the inode. */
-	error = inode_read(get_disk(), NULL, ino, ip);
-	if (error != 0) {
-		/*
-		 * The inode does not contain anything useful, so it
-		 * would be misleading to leave it on its hash chain.
-		 * With mode still zero, it will be unlinked and
-		 * returned to the free list by vput().
-		 */
-		vgone(vp);
-		vput(vp);
-		*vpp = NULL;
-		return (error);
 	}
 
 	/*
