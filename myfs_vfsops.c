@@ -27,7 +27,7 @@ myfs_vfs_mount(struct mount *mp)
 	
 	struct myfs_mount *mntdata;
 	struct nameidata nd;
-	struct vnode *odevvp, *devvp, *rootvp;
+	struct vnode *odevvp, *devvp; //, *rootvp;
 	struct buf *bp;
 	struct cdev *dev;
 	struct g_consumer *cp;
@@ -133,7 +133,7 @@ myfs_vfs_mount(struct mount *mp)
 	mp->mnt_stat.f_iosize = USABLE_BLOCK_SIZE;
 
 	/* 6. Get the root vnode. */
-	error = getnewvnode("myfs", mp, &myfs_vnodeops, &rootvp);
+	/*error = getnewvnode("myfs", mp, &myfs_vnodeops, &rootvp);
 	if (error) {
 		g_topology_lock();
 		g_vfs_close(cp);
@@ -166,10 +166,10 @@ myfs_vfs_mount(struct mount *mp)
 
 	vhold(rootvp);
 
-	VOP_UNLOCK(rootvp);
+	VOP_UNLOCK(rootvp);*/
 
 	mp->mnt_data = mntdata;
-	mntdata->mnt_rootvp = rootvp;
+	//mntdata->mnt_rootvp = rootvp;
 	/* NOTE: do NOT vput() here — the mount holds this reference. */
 
 	printf("myfs: mounted successfully\n");
