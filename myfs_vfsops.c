@@ -313,22 +313,8 @@ myfs_vget(struct mount *mp,
 		 * With mode still zero, it will be unlinked and
 		 * returned to the free list by vput().
 		 */
-		vgone(vp);
-		vput(vp);
 		*vpp = NULL;
 		return (error);
-	}
-
-	/* Translate inode mode to vnode type */
-	switch (ip->mode & S_IFMT) {
-	case S_IFDIR:  vp->v_type = VDIR;  break;
-	case S_IFREG:  vp->v_type = VREG;  break;
-	case S_IFLNK:  vp->v_type = VLNK;  break;
-	case S_IFCHR:  vp->v_type = VCHR;  break;
-	case S_IFBLK:  vp->v_type = VBLK;  break;
-	case S_IFIFO:  vp->v_type = VFIFO; break;
-	case S_IFSOCK: vp->v_type = VSOCK; break;
-	default:       vp->v_type = VNON;  break;
 	}
 
 	/* Allocate a new vnode/inode. */
@@ -345,6 +331,18 @@ myfs_vget(struct mount *mp,
 	VN_LOCK_AREC(vp);
 	vp->v_data = ip;
 	vp->v_bufobj.bo_bsize = BLOCK_SIZE;
+
+	/* Translate inode mode to vnode type */
+	switch (ip->mode & S_IFMT) {
+	case S_IFDIR:  vp->v_type = VDIR;  break;
+	case S_IFREG:  vp->v_type = VREG;  break;
+	case S_IFLNK:  vp->v_type = VLNK;  break;
+	case S_IFCHR:  vp->v_type = VCHR;  break;
+	case S_IFBLK:  vp->v_type = VBLK;  break;
+	case S_IFIFO:  vp->v_type = VFIFO; break;
+	case S_IFSOCK: vp->v_type = VSOCK; break;
+	default:       vp->v_type = VNON;  break;
+	}
 
 	error = insmntque(vp, mp);
 	if (error != 0) {
