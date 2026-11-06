@@ -124,7 +124,7 @@ myfs_vfs_mount(struct mount *mp)
 
 	/* 5. Hand the device vnode to the HAL. */
 	set_disk(disk_open(mp, devvp));
-	get_disk()->total_blocks = sb->total_blocks;
+	get_disk()->total_blocks = mntdata->mnt_sb.total_blocks;
 
 	mp->mnt_stat.f_fsid.val[0] = (int32_t)sb->magic_number;
 	mp->mnt_stat.f_fsid.val[1] = 0;
