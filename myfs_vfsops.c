@@ -126,7 +126,7 @@ myfs_vfs_mount(struct mount *mp)
 	set_disk(disk_open(mp, devvp));
 	get_disk()->total_blocks = mntdata->mnt_sb.total_blocks;
 
-	mp->mnt_stat.f_fsid.val[0] = (int32_t)sb->magic_number;
+	mp->mnt_stat.f_fsid.val[0] = (int32_t)mntdata->mnt_sb.magic_number;
 	mp->mnt_stat.f_fsid.val[1] = 0;
 	mp->mnt_flag |= MNT_LOCAL;
 	mp->mnt_stat.f_bsize  = BLOCK_SIZE;
