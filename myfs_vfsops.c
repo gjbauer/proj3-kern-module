@@ -251,6 +251,9 @@ myfs_vfs_root(struct mount *mp, int flags, struct vnode **vpp)
 
 	*vpp = nvp;
 
+	printf("myfs_root: vnode lock state=%d, current thread=%p\n",
+		VOP_ISLOCKED(nvp), curthread);
+
 	printf("myfs_root: returning\n");
 
 	return (0);
@@ -334,6 +337,7 @@ myfs_vget(struct mount *mp,
 	/* Read the disk contents for the inode, copy into the inode. */
 	error = inode_read(get_disk(), NULL, ino, ip);
 	if (error != 0) {
+		FREE(ip);
 		/*
 		 * The inode does not contain anything useful, so it
 		 * would be misleading to leave it on its hash chain.

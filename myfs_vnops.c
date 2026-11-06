@@ -23,11 +23,11 @@ myfs_vn_open(struct vop_open_args *ap)
 {
 	struct vnode *vp = ap->a_vp;
 
-	VNASSERT(vp->v_type == VREG || vp->v_type == VDIR, vp,
-	    ("myfs_open: non-regular file or directory"));
-
 	printf("myfs_open: ENTER vnode=%p type=%d\n",
 		vp, vp->v_type);
+	
+	VNASSERT(vp->v_type == VREG || vp->v_type == VDIR, vp,
+	    ("myfs_open: non-regular file or directory"));
 
 	/*VNASSERT(ap->a_vp->v_type == VREG || ap->a_vp->v_type == VDIR, vp,
 	    ("myfs_open: non-regular file or directory"));*/
