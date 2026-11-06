@@ -182,6 +182,8 @@ myfs_vfs_unmount(struct mount *mp, int mntflags)
 	struct myfs_mount *mntdata = mp->mnt_data;
 	int error, flags = 0;
 
+	printf("myfs_unmount: ENTER\n");
+
 	if (mntflags & MNT_FORCE)
 		flags |= FORCECLOSE;
 
@@ -191,14 +193,25 @@ myfs_vfs_unmount(struct mount *mp, int mntflags)
 		mntdata->mnt_rootvp = NULL;
 	}
 
+	printf("myfs_unmount: before vflush\n");
+
 	error = vflush(mp, 0, flags, curthread);
+
+	printf("myfs_unmount: after vflush error=%d\n", error);
+
 	if (error)
 		return (error);
+
+	printf("myfs_unmount: before disk_close\n");
 
 	if (get_disk()) {
 		disk_close(get_disk());
 		set_disk(NULL);
 	}
+
+	printf("myfs_unmount: after disk_close\n");
+
+	printf("myfs_unmount: before device vnode cleanup\n");
 	
 	vn_lock(mntdata->mnt_devvp, LK_EXCLUSIVE | LK_RETRY);
 
@@ -295,11 +308,7 @@ myfs_vget(struct mount *mp,
 		printf("myfs_vget: found cached vnode %p for ino %lu, doomed=%ld\n",
 			*vpp, ino, VN_IS_DOOMED(*vpp));
 		if (!VN_IS_DOOMED(*vpp))
-		{
-			VOP_UNLOCK(*vpp);
-			vn_lock(*vpp, flags);
 			return (0);
-		}
 		vgone(*vpp);
 		vput(*vpp);
 	}

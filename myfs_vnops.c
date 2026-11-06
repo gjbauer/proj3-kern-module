@@ -148,8 +148,6 @@ myfs_vn_readdir(struct vop_readdir_args *ap)
 			return (error);
 	}
 
-	VOP_UNLOCK(ap->a_vp);
-
 	return (0);
 }
 
@@ -170,9 +168,16 @@ static int
 myfs_reclaim(struct vop_reclaim_args *ap)
 {
 	struct vnode *vp = ap->a_vp;
+
+	printf("myfs_reclaim: ENTER vnode=%p type=%d data=%p\n",
+		vp, vp->v_type, vp->v_data);
+
 	if (vp->v_data)
 		FREE(vp->v_data);
 	vp->v_data = NULL;
+
+	printf("myfs_reclaim: EXIT\n");
+
 	return (0);
 }
 
