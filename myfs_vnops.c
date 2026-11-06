@@ -21,10 +21,18 @@ void set_disk(DiskInterface *set_disk)
 static int
 myfs_vn_open(struct vop_open_args *ap)
 {
-	//struct vnode *vp = ap->a_vp;
+	struct vnode *vp = ap->a_vp;
 
 	VNASSERT(vp->v_type == VREG || vp->v_type == VDIR, vp,
 	    ("myfs_open: non-regular file or directory"));
+
+	printf("myfs_open: ENTER vnode=%p type=%d\n",
+		vp, vp->v_type);
+
+	/*VNASSERT(ap->a_vp->v_type == VREG || ap->a_vp->v_type == VDIR, vp,
+	    ("myfs_open: non-regular file or directory"));*/
+
+	printf("myfs_open: EXIT\n");
 
 	return (0);
 }
@@ -105,6 +113,8 @@ myfs_vn_readdir(struct vop_readdir_args *ap)
 	struct dirent dirent;
 	int error;
 
+	printf("myfs: readdir call\n");
+
 	if (ap->a_vp->v_type != VDIR)
 		return (ENOTDIR);
 
@@ -137,6 +147,8 @@ myfs_vn_readdir(struct vop_readdir_args *ap)
 		if (error)
 			return (error);
 	}
+
+	VOP_UNLOCK(ap->a_vp);
 
 	return (0);
 }

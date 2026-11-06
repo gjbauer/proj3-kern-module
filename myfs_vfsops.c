@@ -224,10 +224,22 @@ myfs_vfs_root(struct mount *mp, int flags, struct vnode **vpp)
 	struct vnode *nvp;
 	int error;
 
+	printf("myfs_root: entering\n");
+
 	error = VFS_VGET(mp, 0, flags, &nvp);
+
+	printf("myfs_root: VFS_VGET returned %d\n", error);
+
 	if (error)
 		return (error);
+
+	printf("myfs_root: vnode=%p, type=%d, usecount=%d\n",
+		nvp, nvp->v_type, nvp->v_usecount);
+
 	*vpp = nvp;
+
+	printf("myfs_root: returning\n");
+
 	return (0);
 }
 
@@ -272,6 +284,8 @@ myfs_vget(struct mount *mp,
 	struct vnode *vp;
 	int error;
 
+	printf("myfs_vget: ino=%lu, flags=0x%x\n", ino, flags);
+
 	MPASS( (flags & LK_EXCLUSIVE) != 0 );
 
 	error = vfs_hash_get(mp, ino, flags, curthread, vpp, NULL, NULL);
@@ -281,7 +295,11 @@ myfs_vget(struct mount *mp,
 		printf("myfs_vget: found cached vnode %p for ino %lu, doomed=%ld\n",
 			*vpp, ino, VN_IS_DOOMED(*vpp));
 		if (!VN_IS_DOOMED(*vpp))
+		{
+			VOP_UNLOCK(*vpp);
+			vn_lock(*vpp, flags);
 			return (0);
+		}
 		vgone(*vpp);
 		vput(*vpp);
 	}
