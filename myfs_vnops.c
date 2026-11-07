@@ -95,7 +95,7 @@ myfs_vn_getattr(struct vop_getattr_args *ap)
 	vap->va_fsid = vp->v_mount->mnt_stat.f_fsid.val[0];
 	vap->va_fileid = 1;
 	vap->va_size = 0;
-	vap->va_blocksize = MYFS_BLOCK_SIZE;
+	vap->va_blocksize = BLOCK_SIZE;
 	vap->va_bytes = 0;
 
 	printf("myfs_getattr: EXIT vp=%p\n", vp);
@@ -108,6 +108,73 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 {
 	/* Directory lookup implementation would go here */
 	printf("myfs: lookup call\n");
+	struct vnode *dvp = ap->a_dvp;
+	struct componentname *cnp = ap->a_cnp;
+	int error, lock_flags;
+
+	*ap->a_vpp = NULL;
+
+	if (dvp->v_type != VDIR)
+		return (ENOTDIR);
+
+	/*
+	 * The generic namei code handles crossing out of
+	 * the filesystem at its mounted root.
+	 */
+	if (cnp->cn_flags & ISDOTDOT) {
+		struct nameidata nd;
+		char *ppath, *retbuf = NULL, *freebuf = NULL;
+
+		/* 1. Ensure you do NOT hold the vnode lock here */
+		lock_flags = lockstatus(dvp->v_vnlock);
+		VOP_UNLOCK(dvp);
+
+		/* 2. Call the function */
+		error = vn_fullpath(dvp, &retbuf, &freebuf);
+    
+		if (error == 0) {
+			/* Success: retbuf points to the start of the path string */
+			printf("Vnode path: %s\n", retbuf);
+		} else {
+			printf("Failed to resolve path, error: %d\n", error);
+		}
+
+		/* 3. Get parent path */
+
+		ppath = parent_path(retbuf, count_l(retbuf));
+
+		/* 4. Resolve parent path vnode */
+
+		/* 4a. Initialize nameidata */
+		NDINIT(&nd, LOOKUP, FOLLOW | LOCKLEAF | AUDITVNODE1, UIO_USERSPACE, ppath);
+
+		/* 4b. Perform lookup */
+		error = namei(&nd);
+		if (error != 0) {
+			/* Handle error */
+			return error;
+		}
+
+		/* 4c. Access the vnode */
+		*ap->a_vpp = nd.ni_vp;
+
+		/* 4d. Clean up pathname buffer */
+		NDFREE_PNBUF(&nd);
+
+		/* 4e. Free parent bath buffer */
+		FREE(ppath);
+
+		/* 5. Always free freebuf if it was allocated, NOT retbuf */
+		if (freebuf != NULL) {
+			free(freebuf, M_TEMP);
+		}
+
+		/* 6. Re-lock vnode */
+		vn_lock(dvp, lock_flags | LK_RETRY);
+
+		return 0;
+	}
+
 	return (ENOENT);
 }
 

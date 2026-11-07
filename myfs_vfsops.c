@@ -125,53 +125,15 @@ myfs_vfs_mount(struct mount *mp)
 	/* 5. Hand the device vnode to the HAL. */
 	set_disk(disk_open(mp, devvp));
 	get_disk()->total_blocks = mntdata->mnt_sb.total_blocks;
+	strcpy(get_disk()->mount, mp->mnt_stat.f_mntfromname);
 
 	mp->mnt_stat.f_fsid.val[0] = (int32_t)mntdata->mnt_sb.magic_number;
 	mp->mnt_stat.f_fsid.val[1] = 0;
 	mp->mnt_flag |= MNT_LOCAL;
 	mp->mnt_stat.f_bsize  = BLOCK_SIZE;
 	mp->mnt_stat.f_iosize = USABLE_BLOCK_SIZE;
-
-	/* 6. Get the root vnode. */
-	/*error = getnewvnode("myfs", mp, &myfs_vnodeops, &rootvp);
-	if (error) {
-		g_topology_lock();
-		g_vfs_close(cp);
-		g_topology_unlock();
-		atomic_store_rel_ptr((uintptr_t *)&dev->si_mountpt, 0);
-		return (error);
-	}
-
-	vn_lock(rootvp, LK_EXCLUSIVE | LK_RETRY);
-	VN_LOCK_AREC(rootvp);
-
-	Inode *inode = MALLOC(sizeof(struct Inode));
-
-	inode_read(get_disk(), NULL, sb->root_inode, inode);
-
-	rootvp->v_data = inode;
-	rootvp->v_type = VDIR;
-
-	error = insmntque(rootvp, mp);
-	if (error) {
-		vgone(rootvp);
-		g_topology_lock();
-		g_vfs_close(cp);
-		g_topology_unlock();
-		atomic_store_rel_ptr((uintptr_t *)&dev->si_mountpt, 0);
-		return (error);
-	}
-
-	vn_set_state(rootvp, VSTATE_CONSTRUCTED);
-
-	vhold(rootvp);
-
-	VOP_UNLOCK(rootvp);*/
-
 	mp->mnt_data = mntdata;
-	//mntdata->mnt_rootvp = rootvp;
-	/* NOTE: do NOT vput() here — the mount holds this reference. */
-
+	
 	printf("myfs: mounted successfully\n");
 	return (0);
 }
@@ -186,12 +148,6 @@ myfs_vfs_unmount(struct mount *mp, int mntflags)
 
 	if (mntflags & MNT_FORCE)
 		flags |= FORCECLOSE;
-
-	if (mntdata->mnt_rootvp) {
-		vrele(mntdata->mnt_rootvp);
-		vdrop(mntdata->mnt_rootvp);
-		mntdata->mnt_rootvp = NULL;
-	}
 
 	printf("myfs_unmount: before vflush\n");
 
@@ -396,6 +352,9 @@ myfs_vget(struct mount *mp,
 		/* NBtrtFS supports shared locking for all files except fifos. */
 		VN_LOCK_ASHARE(vp);
 	}
+
+	if (ino == 0)
+		vp->v_vflag |= VV_ROOT;
 
 	vn_set_state(vp, VSTATE_CONSTRUCTED);
 	*vpp = vp;

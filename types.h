@@ -16,6 +16,7 @@ typedef struct DiskInterface {
    struct mount *mp;
    struct vnode *vp;
    uint64_t total_blocks;
+   char mount[PATH_MAX];
 } DiskInterface;
 
 // =================== Cache Structures ===================

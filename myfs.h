@@ -36,40 +36,18 @@
 #include "lock.h"
 #include "btr.h"
 #include "alloc.h"
+#include "string.h"
 
 MALLOC_DECLARE(M_MYFS);
 
 /* Filesystem name */
 #define MYFS_NAME	"myfs"
 
-/* Block size */
-#define MYFS_BLOCK_SIZE	4096
-
-/*
- * On-disk inode structure
- */
-struct myfs_inode {
-	uint16_t	i_mode;		/* File mode */
-	uint16_t	i_nlink;	/* Number of links */
-	uint32_t	i_uid;		/* Owner UID */
-	uint32_t	i_gid;		/* Owner GID */
-	uint64_t	i_size;		/* File size in bytes */
-	uint64_t	i_blocks;	/* Number of blocks */
-	uint32_t	i_block[12];	/* Direct block pointers */
-	uint32_t	i_indirect;	/* Single indirect block */
-	uint32_t	i_double_indirect; /* Double indirect block */
-	uint64_t	i_atime;	/* Access time */
-	uint64_t	i_mtime;	/* Modification time */
-	uint64_t	i_ctime;	/* Creation time */
-	/* Add more fields as needed */
-};
-
 /*
  * In-memory mount data structure
  */
 struct myfs_mount {
 	struct mount	*mnt;			/* Back pointer to mount */
-	struct vnode	*mnt_rootvp;		/* Root vnode */
 	struct vnode     *mnt_devvp;
 	Superblock	mnt_sb;		/* Superblock copy */
 	struct g_consumer *mnt_cp;		/* GEOM consumer */
@@ -82,7 +60,7 @@ struct myfs_mount {
 struct myfs_node {
 	struct vnode	*vp;			/* Back pointer to vnode */
 	ino_t		n_ino;			/* Inode number */
-	struct myfs_inode n_inode;		/* On-disk inode copy */
+	Inode n_inode;		/* On-disk inode copy */
 	/* Add more fields as needed */
 };
 
