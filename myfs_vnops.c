@@ -82,6 +82,9 @@ myfs_vn_getattr(struct vop_getattr_args *ap)
 	struct vnode *vp = ap->a_vp;
 	struct vattr *vap = ap->a_vap;
 
+	printf("myfs_getattr: ENTER vp=%p thread=%p\n",
+		vp, curthread);
+
 	/* Return default attributes */
 	VATTR_NULL(vap);
 	vap->va_type = vp->v_type;
@@ -94,6 +97,8 @@ myfs_vn_getattr(struct vop_getattr_args *ap)
 	vap->va_size = 0;
 	vap->va_blocksize = MYFS_BLOCK_SIZE;
 	vap->va_bytes = 0;
+
+	printf("myfs_getattr: EXIT vp=%p\n", vp);
 
 	return (0);
 }
@@ -148,6 +153,8 @@ myfs_vn_readdir(struct vop_readdir_args *ap)
 			return (error);
 	}
 
+	*ap->a_eofflag = 1;
+
 	return (0);
 }
 
@@ -181,6 +188,15 @@ myfs_reclaim(struct vop_reclaim_args *ap)
 	return (0);
 }
 
+static int
+myfs_vn_access(struct vop_access_args *ap)
+{
+    printf("myfs_access: ENTER vp=%p mode=0x%x\n",
+        ap->a_vp, ap->a_accmode);
+
+    return (0);  /* Diagnostic only: bypasses permission checks. */
+}
+
 /* Vnode operations vectors */
 struct vop_vector myfs_vnodeops = {
 	.vop_default =		&default_vnodeops,
@@ -193,5 +209,6 @@ struct vop_vector myfs_vnodeops = {
 	.vop_readdir =		myfs_vn_readdir,
 	.vop_strategy =		myfs_vn_strategy,
 	.vop_reclaim =		myfs_reclaim,
+	.vop_access =		myfs_vn_access,
 };
 VFS_VOP_VECTOR_REGISTER(myfs_vnodeops);
