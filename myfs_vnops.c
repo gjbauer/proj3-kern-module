@@ -143,12 +143,12 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 		/* 4. Resolve parent path vnode */
 
 		/* 4a. Initialize nameidata */
-		NDINIT(&nd, LOOKUP, FOLLOW | LOCKLEAF | AUDITVNODE1, UIO_USERSPACE, ppath);
+		NDINIT(&nd, LOOKUP, FOLLOW | LOCKLEAF | AUDITVNODE1, UIO_SYSSPACE, ppath);
 
 		/* 4b. Perform lookup */
 		error = namei(&nd);
 		if (error != 0) {
-			/* Handle error */
+			vn_lock(dvp, lock_flags | LK_RETRY);
 			return error;
 		}
 
@@ -277,6 +277,7 @@ myfs_vn_readdir(struct vop_readdir_args *ap)
 		case S_IFSOCK: dirent.d_type = DT_SOCK; break;
 		default:       dirent.d_type = DT_UNKNOWN;  break;
 		}
+		vput(nvp);
 		dirent.d_namlen = strlen(entries[i].name);
 		strcpy(dirent.d_name, entries[i].name);
 		dirent.d_reclen = GENERIC_DIRSIZ(&dirent);
@@ -284,13 +285,11 @@ myfs_vn_readdir(struct vop_readdir_args *ap)
 		if (uio->uio_offset == dirent.d_reclen) {
 			error = uiomove(&dirent, dirent.d_reclen, uio);
 			if (error) {
-				vput(nvp);
 				FREE(entries);
 				vn_lock(vp, lock_flags | LK_RETRY);
 				return (error);
 			}
 		}
-		vput(nvp);
 	}
 
 
