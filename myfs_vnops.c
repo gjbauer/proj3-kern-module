@@ -174,6 +174,11 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 
 		return 0;
 	}
+	else if (!strcmp(cnp->cn_nameptr, ".")) {
+		vref(dvp);
+		*ap->a_vpp = dvp;
+		return 0;
+	}
 
 	return (ENOENT);
 }
