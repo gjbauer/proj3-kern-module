@@ -37,6 +37,7 @@
 #include "btr.h"
 #include "alloc.h"
 #include "string.h"
+#include "directory.h"
 
 MALLOC_DECLARE(M_MYFS);
 

@@ -29,9 +29,6 @@ myfs_vn_open(struct vop_open_args *ap)
 	VNASSERT(vp->v_type == VREG || vp->v_type == VDIR, vp,
 	    ("myfs_open: non-regular file or directory"));
 
-	/*VNASSERT(ap->a_vp->v_type == VREG || ap->a_vp->v_type == VDIR, vp,
-	    ("myfs_open: non-regular file or directory"));*/
-
 	printf("myfs_open: EXIT\n");
 
 	return (0);
@@ -129,9 +126,9 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 		lock_flags = lockstatus(dvp->v_vnlock);
 		VOP_UNLOCK(dvp);
 
-		/* 2. Call the function */
+		/* 2. Get the full path */
 		error = vn_fullpath(dvp, &retbuf, &freebuf);
-    
+
 		if (error == 0) {
 			/* Success: retbuf points to the start of the path string */
 			printf("Vnode path: %s\n", retbuf);
@@ -186,11 +183,16 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 static int
 myfs_vn_readdir(struct vop_readdir_args *ap)
 {
+	struct vnode *vp = ap->a_vp;
 	struct uio *uio = ap->a_uio;
 	struct dirent dirent;
-	int error;
+	DirEntry *entries;
+	char *retbuf = NULL, *freebuf = NULL;
+	int error, lock_flags;
 
 	printf("myfs: readdir call\n");
+	
+	*ap->a_eofflag = 0;
 
 	if (ap->a_vp->v_type != VDIR)
 		return (ENOTDIR);
@@ -223,6 +225,75 @@ myfs_vn_readdir(struct vop_readdir_args *ap)
 		error = uiomove(&dirent, dirent.d_reclen, uio);
 		if (error)
 			return (error);
+	}
+
+	/* Resolve non-dot, non-dotdot files */
+
+	/* 1. Ensure you do NOT hold the vnode lock here */
+	lock_flags = lockstatus(vp->v_vnlock);
+	VOP_UNLOCK(vp);
+
+	/* 2. Get the full path */
+	error = vn_fullpath(vp, &retbuf, &freebuf);
+
+	if (error == 0) {
+		/* Success: retbuf points to the start of the path string */
+		printf("Vnode path: %s\n", retbuf);
+	} else {
+		printf("Failed to resolve path, error: %d\n", error);
+	}
+
+	/* 3. List the contents of the directory */
+
+	int count = directory_list(get_disk(), NULL, retbuf, &entries);
+	struct vnode *nvp;
+	Inode *ip;
+
+	/* 4. Fill in the dirent with information gathered */
+	for (int i=0; i<count; i++)
+	{
+		dirent.d_fileno = i + 2;
+		error = VFS_VGET(get_disk()->mp, entries[i].inode_number, LK_EXCLUSIVE | LK_RETRY, &nvp);
+		if (error) {
+			FREE(entries);
+			return (error);
+		}
+		ip = nvp->v_data;
+		switch (ip->mode & S_IFMT) {
+		case S_IFDIR:  dirent.d_type = DT_DIR;  break;
+		case S_IFREG:  dirent.d_type = DT_REG;  break;
+		case S_IFLNK:  dirent.d_type = DT_LNK;  break;
+		case S_IFCHR:  dirent.d_type = DT_CHR;  break;
+		case S_IFBLK:  dirent.d_type = DT_BLK;  break;
+		case S_IFIFO:  dirent.d_type = DT_FIFO; break;
+		case S_IFSOCK: dirent.d_type = DT_SOCK; break;
+		default:       dirent.d_type = DT_UNKNOWN;  break;
+		}
+		dirent.d_namlen = strlen(entries[i].name);
+		strcpy(dirent.d_name, entries[i].name);
+		dirent.d_reclen = GENERIC_DIRSIZ(&dirent);
+
+		if (uio->uio_offset == dirent.d_reclen) {
+			error = uiomove(&dirent, dirent.d_reclen, uio);
+			if (error)
+				return (error);
+		}
+	}
+
+
+	/* 5. Always free freebuf if it was allocated, NOT retbuf */
+	if (freebuf != NULL) {
+		free(freebuf, M_TEMP);
+	}
+
+	/* 6. Re-lock vnode */
+	vn_lock(vp, lock_flags | LK_RETRY);
+
+	/* 7. Wipe and free entries structure */
+	if (entries)
+	{
+		arc4random_buf(entries, count*sizeof(struct DirEntry));
+		FREE(entries);
 	}
 
 	*ap->a_eofflag = 1;
