@@ -180,6 +180,41 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 	return (ENOENT);
 }
 
+/*
+ * Returns:
+ *   0       Entry emitted or skipped because it was already read
+ *   EAGAIN  Not enough space for this entry
+ *   other   uiomove() error
+ */
+static int
+myfs_emit_dirent(struct uio *uio, struct dirent *de,
+    off_t *position)
+{
+	off_t next = *position + de->d_reclen;
+	int error;
+
+	/*
+	 * Skip entries before the offset requested by the caller.
+	 */
+	if (next <= uio->uio_offset) {
+		*position = next;
+		return (0);
+	}
+
+	/*
+	 * Don't emit a partial dirent.
+	 */
+	if (uio->uio_resid < de->d_reclen)
+		return (EAGAIN);
+
+	error = uiomove(de, de->d_reclen, uio);
+	if (error != 0)
+		return (error);
+
+	*position = next;
+	return (0);
+}
+
 static int
 myfs_vn_readdir(struct vop_readdir_args *ap)
 {
@@ -187,45 +222,40 @@ myfs_vn_readdir(struct vop_readdir_args *ap)
 	struct uio *uio = ap->a_uio;
 	struct dirent dirent;
 	DirEntry *entries = NULL;
-	char *retbuf = NULL, *freebuf = NULL;
-	int error, lock_flags;
+	char *retbuf = NULL, *freebuf = NULL, *from_root = NULL;
+	int error = 0, lock_flags;
+	off_t position = 0;
+	bool eof = false;
 
 	printf("myfs: readdir call\n");
 	
-	*ap->a_eofflag = 0;
 
 	if (ap->a_vp->v_type != VDIR)
 		return (ENOTDIR);
 
-	/* Simple readdir - return '.' and '..' */
+	/* "." */
 	bzero(&dirent, sizeof(dirent));
-
-	/* Return "." */
 	dirent.d_fileno = 1;
 	dirent.d_type = DT_DIR;
 	dirent.d_namlen = 1;
 	strcpy(dirent.d_name, ".");
 	dirent.d_reclen = GENERIC_DIRSIZ(&dirent);
 
-	if (uio->uio_offset == 0) {
-		error = uiomove(&dirent, dirent.d_reclen, uio);
-		if (error)
-			return (error);
-		uio->uio_offset = dirent.d_reclen;
-	}
+	error = myfs_emit_dirent(uio, &dirent, &position);
+	if (error != 0)
+		goto out;
 
-	/* Return ".." */
+	/* ".." */
+	bzero(&dirent, sizeof(dirent));
 	dirent.d_fileno = 1;
 	dirent.d_type = DT_DIR;
 	dirent.d_namlen = 2;
 	strcpy(dirent.d_name, "..");
 	dirent.d_reclen = GENERIC_DIRSIZ(&dirent);
 
-	if (uio->uio_offset == dirent.d_reclen) {
-		error = uiomove(&dirent, dirent.d_reclen, uio);
-		if (error)
-			return (error);
-	}
+	error = myfs_emit_dirent(uio, &dirent, &position);
+	if (error != 0)
+		goto out;
 
 	/* Resolve non-dot, non-dotdot files */
 
@@ -245,7 +275,7 @@ myfs_vn_readdir(struct vop_readdir_args *ap)
 	}
 
 	/* 3. Get path from root */
-	char *from_root = from_fs_root(retbuf);
+	from_root = from_fs_root(retbuf);
 
 	/* 4. List the contents of the directory */
 
@@ -259,12 +289,12 @@ myfs_vn_readdir(struct vop_readdir_args *ap)
 	/* 5. Fill in the dirent with information gathered */
 	for (int i=0; i<count; i++)
 	{
-		dirent.d_fileno = i + 2;
+		bzero(&dirent, sizeof(dirent));
+		dirent.d_fileno = entries[i].inode_number;
 		error = VFS_VGET(get_disk()->mp, entries[i].inode_number, LK_EXCLUSIVE | LK_RETRY, &nvp);
 		if (error) {
-			FREE(entries);
 			vn_lock(vp, lock_flags | LK_RETRY);
-			return (error);
+			goto out;
 		}
 		ip = nvp->v_data;
 		switch (ip->mode & S_IFMT) {
@@ -282,38 +312,48 @@ myfs_vn_readdir(struct vop_readdir_args *ap)
 		strcpy(dirent.d_name, entries[i].name);
 		dirent.d_reclen = GENERIC_DIRSIZ(&dirent);
 
-		if (uio->uio_offset == dirent.d_reclen) {
-			error = uiomove(&dirent, dirent.d_reclen, uio);
-			if (error) {
-				FREE(entries);
-				vn_lock(vp, lock_flags | LK_RETRY);
-				return (error);
-			}
-		}
+		error = myfs_emit_dirent(uio, &dirent, &position);
+		if (error != 0)
+			goto out;
 	}
 
+	eof = true;
 
-	/* 6. Always free freebuf if it was allocated, NOT retbuf
-	 * Free from_root buffer as well
+out:
+	/*
+	 * Free buffers allocated during directory enumeration.
+	 * This assumes the caller owns entries and from_root.
 	 */
-	if (freebuf != NULL) {
-		free(freebuf, M_TEMP);
-		FREE(from_root);
-	}
-
-	/* 6. Re-lock vnode */
-	vn_lock(vp, lock_flags | LK_RETRY);
-
-	/* 7. Wipe and free entries structure */
-	if (entries)
-	{
-		arc4random_buf(entries, count*sizeof(struct DirEntry));
+	if (entries != NULL)
 		FREE(entries);
+
+	if (from_root != NULL)
+		FREE(from_root);
+
+	if (freebuf != NULL)
+		free(freebuf, M_TEMP);
+
+	/*
+	 * Only re-lock if this function actually unlocked vp.
+	 * Track that using a separate boolean.
+	 */
+	if (!VOP_ISLOCKED(vp))
+		vn_lock(vp, lock_flags | LK_RETRY);
+
+	if (error == EAGAIN) {
+		/*
+		 * Buffer filled before reaching the end.
+		 * A later call can resume using uio_offset.
+		 */
+		error = 0;
+	} else if (error == 0) {
+		eof = true;
 	}
 
-	*ap->a_eofflag = 1;
+	if (ap->a_eofflag != NULL)
+		*ap->a_eofflag = eof ? 1 : 0;
 
-	return (0);
+	return (error);
 }
 
 static int
