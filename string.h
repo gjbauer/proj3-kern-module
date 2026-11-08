@@ -5,6 +5,9 @@
 #include "journal.h"
 #include "myfs.h"
 
+char *
+from_fs_root(char *absolute);
+
 int count_l(const char *path);
 
 char* parent_path(const char *path, int l);

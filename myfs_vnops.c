@@ -186,7 +186,7 @@ myfs_vn_readdir(struct vop_readdir_args *ap)
 	struct vnode *vp = ap->a_vp;
 	struct uio *uio = ap->a_uio;
 	struct dirent dirent;
-	DirEntry *entries;
+	DirEntry *entries = NULL;
 	char *retbuf = NULL, *freebuf = NULL;
 	int error, lock_flags;
 
@@ -241,21 +241,29 @@ myfs_vn_readdir(struct vop_readdir_args *ap)
 		printf("Vnode path: %s\n", retbuf);
 	} else {
 		printf("Failed to resolve path, error: %d\n", error);
+		return (error);
 	}
 
-	/* 3. List the contents of the directory */
+	/* 3. Get path from root */
+	char *from_root = from_fs_root(retbuf);
 
-	int count = directory_list(get_disk(), NULL, retbuf, &entries);
+	/* 4. List the contents of the directory */
+
+	int count = directory_list(get_disk(), NULL, from_root, &entries);
+
+	printf("myfs_readdir: count=%d entries=%p\n", count, entries);
+
 	struct vnode *nvp;
 	Inode *ip;
 
-	/* 4. Fill in the dirent with information gathered */
+	/* 5. Fill in the dirent with information gathered */
 	for (int i=0; i<count; i++)
 	{
 		dirent.d_fileno = i + 2;
 		error = VFS_VGET(get_disk()->mp, entries[i].inode_number, LK_EXCLUSIVE | LK_RETRY, &nvp);
 		if (error) {
 			FREE(entries);
+			vn_lock(vp, lock_flags | LK_RETRY);
 			return (error);
 		}
 		ip = nvp->v_data;
@@ -275,15 +283,23 @@ myfs_vn_readdir(struct vop_readdir_args *ap)
 
 		if (uio->uio_offset == dirent.d_reclen) {
 			error = uiomove(&dirent, dirent.d_reclen, uio);
-			if (error)
+			if (error) {
+				vput(nvp);
+				FREE(entries);
+				vn_lock(vp, lock_flags | LK_RETRY);
 				return (error);
+			}
 		}
+		vput(nvp);
 	}
 
 
-	/* 5. Always free freebuf if it was allocated, NOT retbuf */
+	/* 6. Always free freebuf if it was allocated, NOT retbuf
+	 * Free from_root buffer as well
+	 */
 	if (freebuf != NULL) {
 		free(freebuf, M_TEMP);
+		FREE(from_root);
 	}
 
 	/* 6. Re-lock vnode */

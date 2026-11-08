@@ -1,5 +1,17 @@
 #include "string.h"
 #include "alloc.h"
+#include "disk.h"
+
+char *
+from_fs_root(char *absolute)
+{
+	char *temp = MALLOC(PATH_MAX);
+	if ('\0' == absolute[strlen(absolute)])
+		strcpy(temp, "/");
+	else
+		strcpy(temp, absolute + strlen(get_disk()->mount));
+	return temp;
+}
 
 int
 count_l(const char *path)
