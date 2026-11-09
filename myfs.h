@@ -44,6 +44,11 @@ MALLOC_DECLARE(M_MYFS);
 /* Filesystem name */
 #define MYFS_NAME	"myfs"
 
+struct myfs_node {
+	Inode *inode;
+	char *relative_path;
+};
+
 /*
  * In-memory mount data structure
  */
@@ -52,16 +57,6 @@ struct myfs_mount {
 	struct vnode     *mnt_devvp;
 	Superblock	mnt_sb;		/* Superblock copy */
 	struct g_consumer *mnt_cp;		/* GEOM consumer */
-	/* Add more fields as needed */
-};
-
-/*
- * In-memory inode data (vnode private data)
- */
-struct myfs_node {
-	struct vnode	*vp;			/* Back pointer to vnode */
-	ino_t		n_ino;			/* Inode number */
-	Inode n_inode;		/* On-disk inode copy */
 	/* Add more fields as needed */
 };
 

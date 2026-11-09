@@ -197,6 +197,11 @@ myfs_vfs_root(struct mount *mp, int flags, struct vnode **vpp)
 
 	error = VFS_VGET(mp, 0, flags, &nvp);
 
+	struct myfs_node *node = nvp->v_data;
+
+	node->relative_path = MALLOC(2);
+	strcpy(node->relative_path, "/");
+
 	printf("myfs_root: VFS_VGET returned %d\n", error);
 
 	if (error)
@@ -253,6 +258,7 @@ myfs_vget(struct mount *mp,
 	struct vnode **vpp)
 {
 	Inode *ip;
+	struct myfs_node *mfs_node;
 	struct vnode *vp;
 	int error;
 
@@ -280,6 +286,8 @@ myfs_vget(struct mount *mp,
 		flags &= ~LK_TYPE_MASK;
 		flags |= LK_EXCLUSIVE;
 	}
+
+	mfs_node = MALLOC(sizeof(struct myfs_node));
 
 	/*
 	 * We do not lock vnode creation as it is believed to be too
@@ -311,12 +319,13 @@ myfs_vget(struct mount *mp,
 		FREE(ip);
 		return (error);
 	}
+	mfs_node->inode = ip;
 	/*
-	 * FFS supports recursive locking.
+	 * MyFS supports recursive locking.
 	 */
 	lockmgr(vp->v_vnlock, LK_EXCLUSIVE | LK_NOWITNESS, NULL);
 	VN_LOCK_AREC(vp);
-	vp->v_data = ip;
+	vp->v_data = mfs_node;
 	vp->v_bufobj.bo_bsize = BLOCK_SIZE;
 
 	/* Translate inode mode to vnode type */

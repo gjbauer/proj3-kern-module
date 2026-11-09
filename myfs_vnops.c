@@ -78,6 +78,8 @@ myfs_vn_getattr(struct vop_getattr_args *ap)
 {
 	struct vnode *vp = ap->a_vp;
 	struct vattr *vap = ap->a_vap;
+	struct myfs_node *mfs_node = vp->v_data;
+	Inode *ip = mfs_node->inode;
 
 	printf("myfs_getattr: ENTER vp=%p thread=%p\n",
 		vp, curthread);
@@ -90,7 +92,7 @@ myfs_vn_getattr(struct vop_getattr_args *ap)
 	vap->va_uid = 0;
 	vap->va_gid = 0;
 	vap->va_fsid = vp->v_mount->mnt_stat.f_fsid.val[0];
-	vap->va_fileid = 1;
+	vap->va_fileid = ip->inode_number;
 	vap->va_size = 0;
 	vap->va_blocksize = BLOCK_SIZE;
 	vap->va_bytes = 0;
@@ -106,10 +108,25 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 	/* Directory lookup implementation would go here */
 	printf("myfs: lookup call\n");
 	struct vnode *dvp = ap->a_dvp;
+	struct myfs_node *mfs_node = dvp->v_data;
 	struct componentname *cnp = ap->a_cnp;
 	int error, lock_flags;
 
 	*ap->a_vpp = NULL;
+
+	bool is_dotdot = cnp->cn_namelen == 2 && memcmp(cnp->cn_nameptr, "..", 2) == 0;
+
+	printf("myfs_lookup: name='%.*s' len=%d "
+		"flags=0x%lx ISDOTDOT=%d ISLASTCN=%d "
+		"dvp=%p locked=%d is_dotdot=%d\n",
+		(int)cnp->cn_namelen,
+		cnp->cn_nameptr,
+		(int)cnp->cn_namelen,
+		cnp->cn_flags,
+		!!(cnp->cn_flags & ISDOTDOT),
+		!!(cnp->cn_flags & ISLASTCN),
+		dvp,
+		VOP_ISLOCKED(dvp), is_dotdot);
 	
 	printf("myfs_lookup: name=%s\n", cnp->cn_nameptr);
 
@@ -121,10 +138,34 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 	 * the filesystem at its mounted root.
 	 */
 	if (cnp->cn_flags & ISDOTDOT) {
-		char *ppath, *retbuf = NULL, *freebuf = NULL;
+		char *ppath;
+		if (strcmp(mfs_node->relative_path, "/")) {
+			ppath = parent_path(mfs_node->relative_path, count_l(mfs_node->relative_path));
+
+			InodeBtreePair *pair = item_search(get_disk(), NULL, ppath);
+
+			printf("myfs_lookup: before vget\n");
+
+			error = VFS_VGET(get_disk()->mp, pair->inode_number, LK_EXCLUSIVE | LK_RETRY, ap->a_vpp);
+	
+			printf("myfs_lookup: after vget\n");
+			FREE(ppath);
+			FREE(pair);
+
+			return (error);
+		}
+		char *retbuf = NULL, *freebuf = NULL;
+
+		printf("DOTDOT: before unlock\n");
 		
-		/* 1. Get the full path */
+		/* 1. Ensure you do NOT hold the vnode lock here */
+		lock_flags = lockstatus(dvp->v_vnlock);
+		VOP_UNLOCK(dvp);
+		
+		/* 2. Get the full path */
+		printf("DOTDOT: before vn_fullpath\n");
 		error = vn_fullpath(dvp, &retbuf, &freebuf);
+		printf("DOTDOT: after vn_fullpath error=%d\n", error);
 
 		if (error == 0) {
 			/* Success: retbuf points to the start of the path string */
@@ -133,28 +174,10 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 			printf("Failed to resolve path, error: %d\n", error);
 		}
 
-		if (count_l(retbuf) > count_l(get_disk()->mount)) {
-			char *path;
-			path = from_fs_root(retbuf);
-			ppath = parent_path(path, count_l(path));
+		printf("l - retbuf = %d, l - mount = %d\n", count_l(retbuf), count_l(get_disk()->mount));
 
-			InodeBtreePair *pair = item_search(get_disk(), NULL, ppath);
-
-			error = VFS_VGET(get_disk()->mp, pair->inode_number, LK_EXCLUSIVE | LK_RETRY, ap->a_vpp);
-	
-			free(freebuf, M_TEMP);
-			FREE(ppath);
-			FREE(pair);
-
-			return (error);
-		}
 
 		struct nameidata nd;
-
-		/* 2. Ensure you do NOT hold the vnode lock here */
-		lock_flags = lockstatus(dvp->v_vnlock);
-		VOP_UNLOCK(dvp);
-
 
 		/* 3. Get parent path */
 
@@ -168,7 +191,9 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 		/* 4b. Perform lookup */
 		error = namei(&nd);
 		if (error != 0) {
+			printf("DOTDOT: before relock\n");
 			vn_lock(dvp, lock_flags | LK_RETRY);
+			printf("DOTDOT: after relock error=%d\n", error);
 			return error;
 		}
 
@@ -187,7 +212,9 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 		}
 
 		/* 6. Re-lock vnode */
+		printf("DOTDOT: before relock\n");
 		vn_lock(dvp, lock_flags | LK_RETRY);
+		printf("DOTDOT: after relock error=%d\n", error);
 
 		return 0;
 	}
@@ -197,7 +224,10 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 		return 0;
 	}
 
-	BTreeNode tree_node;
+	InodeBtreePair *pair = item_search(get_disk(), NULL, mfs_node->relative_path);
+	error = VFS_VGET(get_disk()->mp, pair->inode_number, LK_EXCLUSIVE | LK_RETRY, ap->a_vpp);
+	FREE(pair);
+	/*BTreeNode tree_node;
 
 	if (dvp->v_vflag & VV_ROOT) {
 		printf("myfs_lookup: first component\n");
@@ -206,23 +236,9 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 
 		btree_node_read(get_disk(), NULL, sb.btree_root, &tree_node);
 	} else {
-		char *path = NULL, *retbuf = NULL, *freebuf = NULL;
-
-		error = vn_fullpath(dvp, &retbuf, &freebuf);
-		
-		if (error == 0) {
-			/* Success: retbuf points to the start of the path string */
-			printf("Vnode path: %s\n", retbuf);
-		} else {
-			printf("Failed to resolve path, error: %d\n", error);
-		}
-
-		path = from_fs_root(retbuf);
-		InodeBtreePair *pair = item_search(get_disk(), NULL, path);
+		InodeBtreePair *pair = item_search(get_disk(), NULL, mfs_node->relative_path);
 		btree_node_read(get_disk(), NULL, pair->btree_block, &tree_node);
 
-		free(freebuf, M_TEMP);
-		FREE(path);
 		FREE(pair);
 	}
 
@@ -245,7 +261,19 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 		if (btree_node_read(get_disk(), NULL, tree_node.value, &tree_node)) return (ENOENT);
 	}
 	
-	error = VFS_VGET(get_disk()->mp, tree_node.value, LK_EXCLUSIVE | LK_RETRY, ap->a_vpp);
+	error = VFS_VGET(get_disk()->mp, tree_node.value, LK_EXCLUSIVE | LK_RETRY, ap->a_vpp);*/
+
+	struct myfs_node *dnode = dvp->v_data, *nnode = (*ap->a_vpp)->v_data;
+	if (strlen(dnode->relative_path) == 1)
+	{
+		nnode->relative_path = MALLOC(cnp->cn_namelen + 2);
+		snprintf(nnode->relative_path, cnp->cn_namelen + 2, "/%s", cnp->cn_nameptr);
+	}
+	else
+	{
+		dnode->relative_path = MALLOC(cnp->cn_namelen + strlen(dnode->relative_path));
+		snprintf(nnode->relative_path, cnp->cn_namelen + strlen(dnode->relative_path), "%s/%s", dnode->relative_path, cnp->cn_nameptr);
+	}
 
 	if (error)
 		return (error);
