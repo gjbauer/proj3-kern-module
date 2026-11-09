@@ -110,6 +110,8 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 	int error, lock_flags;
 
 	*ap->a_vpp = NULL;
+	
+	printf("myfs_lookup: name=%s\n", cnp->cn_nameptr);
 
 	if (dvp->v_type != VDIR)
 		return (ENOTDIR);
@@ -177,7 +179,7 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 		return 0;
 	}
 
-	static BTreeNode tree_node;
+	BTreeNode tree_node;
 
 	if (dvp->v_vflag & VV_ROOT) {
 		printf("myfs_lookup: first component\n");
@@ -207,6 +209,14 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 	}
 
 	uint64_t node_block;
+
+	printf("myfs_lookup: dvp=%p root=%d name=%.*s "
+		"start_block=%ju\n",
+		dvp,
+		!!(dvp->v_vflag & VV_ROOT),
+		(int)cnp->cn_namelen,
+		cnp->cn_nameptr,
+		(uintmax_t)tree_node.block_number);
 	
 	node_block = btree_search(get_disk(), NULL, tree_node.block_number, path_hash(cnp->cn_nameptr));
 
