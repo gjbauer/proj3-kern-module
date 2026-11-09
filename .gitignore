@@ -10,3 +10,4 @@ myfs.ko*
 export_syms
 mount_myfs
 *.tmp
+*.kld
