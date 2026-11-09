@@ -199,8 +199,10 @@ myfs_vfs_root(struct mount *mp, int flags, struct vnode **vpp)
 
 	struct myfs_node *node = nvp->v_data;
 
-	node->relative_path = MALLOC(2);
-	strcpy(node->relative_path, "/");
+	if (node->relative_path == NULL) {
+		node->relative_path = MALLOC(2);
+		strcpy(node->relative_path, "/");
+	}
 
 	printf("myfs_root: VFS_VGET returned %d\n", error);
 
@@ -288,6 +290,7 @@ myfs_vget(struct mount *mp,
 	}
 
 	mfs_node = MALLOC(sizeof(struct myfs_node));
+	mfs_node->relative_path = NULL;
 
 	/*
 	 * We do not lock vnode creation as it is believed to be too

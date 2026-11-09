@@ -108,17 +108,15 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 	/* Directory lookup implementation would go here */
 	printf("myfs: lookup call\n");
 	struct vnode *dvp = ap->a_dvp;
-	struct myfs_node *mfs_node = dvp->v_data;
+	struct myfs_node *dnode = dvp->v_data;
 	struct componentname *cnp = ap->a_cnp;
 	int error, lock_flags;
 
 	*ap->a_vpp = NULL;
 
-	bool is_dotdot = cnp->cn_namelen == 2 && memcmp(cnp->cn_nameptr, "..", 2) == 0;
-
 	printf("myfs_lookup: name='%.*s' len=%d "
 		"flags=0x%lx ISDOTDOT=%d ISLASTCN=%d "
-		"dvp=%p locked=%d is_dotdot=%d\n",
+		"dvp=%p locked=%d\n",
 		(int)cnp->cn_namelen,
 		cnp->cn_nameptr,
 		(int)cnp->cn_namelen,
@@ -126,7 +124,7 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 		!!(cnp->cn_flags & ISDOTDOT),
 		!!(cnp->cn_flags & ISLASTCN),
 		dvp,
-		VOP_ISLOCKED(dvp), is_dotdot);
+		VOP_ISLOCKED(dvp));
 	
 	printf("myfs_lookup: name=%s\n", cnp->cn_nameptr);
 
@@ -139,8 +137,8 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 	 */
 	if (cnp->cn_flags & ISDOTDOT) {
 		char *ppath;
-		if (strcmp(mfs_node->relative_path, "/")) {
-			ppath = parent_path(mfs_node->relative_path, count_l(mfs_node->relative_path));
+		if (strcmp(dnode->relative_path, "/")) {
+			ppath = parent_path(dnode->relative_path, count_l(dnode->relative_path));
 
 			InodeBtreePair *pair = item_search(get_disk(), NULL, ppath);
 
@@ -173,9 +171,6 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 		} else {
 			printf("Failed to resolve path, error: %d\n", error);
 		}
-
-		printf("l - retbuf = %d, l - mount = %d\n", count_l(retbuf), count_l(get_disk()->mount));
-
 
 		struct nameidata nd;
 
@@ -223,8 +218,20 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 		*ap->a_vpp = dvp;
 		return 0;
 	}
+	
+	char *relative_path = NULL;
+	if (strlen(dnode->relative_path) == 1)
+	{
+		relative_path = MALLOC(cnp->cn_namelen + 2);
+		snprintf(relative_path, cnp->cn_namelen + 2, "/%s", cnp->cn_nameptr);
+	}
+	else
+	{
+		relative_path = MALLOC(cnp->cn_namelen + strlen(dnode->relative_path));
+		snprintf(relative_path, cnp->cn_namelen + strlen(dnode->relative_path), "%s/%s", dnode->relative_path, cnp->cn_nameptr);
+	}
 
-	InodeBtreePair *pair = item_search(get_disk(), NULL, mfs_node->relative_path);
+	InodeBtreePair *pair = item_search(get_disk(), NULL, relative_path);
 	error = VFS_VGET(get_disk()->mp, pair->inode_number, LK_EXCLUSIVE | LK_RETRY, ap->a_vpp);
 	FREE(pair);
 	/*BTreeNode tree_node;
@@ -263,17 +270,9 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 	
 	error = VFS_VGET(get_disk()->mp, tree_node.value, LK_EXCLUSIVE | LK_RETRY, ap->a_vpp);*/
 
-	struct myfs_node *dnode = dvp->v_data, *nnode = (*ap->a_vpp)->v_data;
-	if (strlen(dnode->relative_path) == 1)
-	{
-		nnode->relative_path = MALLOC(cnp->cn_namelen + 2);
-		snprintf(nnode->relative_path, cnp->cn_namelen + 2, "/%s", cnp->cn_nameptr);
-	}
-	else
-	{
-		dnode->relative_path = MALLOC(cnp->cn_namelen + strlen(dnode->relative_path));
-		snprintf(nnode->relative_path, cnp->cn_namelen + strlen(dnode->relative_path), "%s/%s", dnode->relative_path, cnp->cn_nameptr);
-	}
+	struct myfs_node *nnode = (*ap->a_vpp)->v_data;
+
+	nnode->relative_path = relative_path;
 
 	if (error)
 		return (error);
