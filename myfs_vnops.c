@@ -185,6 +185,25 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 		superblock_read(get_disk(), NULL, &sb);
 
 		btree_node_read(get_disk(), NULL, sb.btree_root, &tree_node);
+	} else {
+		char *path = NULL, *retbuf = NULL, *freebuf = NULL;
+
+		error = vn_fullpath(dvp, &retbuf, &freebuf);
+		
+		if (error == 0) {
+			/* Success: retbuf points to the start of the path string */
+			printf("Vnode path: %s\n", retbuf);
+		} else {
+			printf("Failed to resolve path, error: %d\n", error);
+		}
+
+		path = from_fs_root(retbuf);
+		InodeBtreePair *pair = item_search(get_disk(), NULL, path);
+		btree_node_read(get_disk(), NULL, pair->btree_block, &tree_node);
+
+		free(freebuf, M_TEMP);
+		FREE(path);
+		FREE(pair);
 	}
 
 	uint64_t node_block;
