@@ -52,13 +52,19 @@ int directory_add_entry(DiskInterface* disk, cache *cache, const char *path, con
                     db->entry_count = 0;
                 }
                 write_block(disk, cache, block_type, 0, block);
-                decrease_pin_count(disk, cache, pair->inode_number, block);
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
+		decrease_pin_count(disk, cache, pair->inode_number, block);
             }
             else block_type = get_block(disk, cache, pair->inode_number, block);
             
             if (BLOCK_TYPE_DATA != *block_type)
             {
                 FPRINTF("ERROR: Not a data type block!!\n");
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
                 decrease_pin_count(disk, cache, pair->inode_number, block);
                 rv = -1;
                 goto free_pair;
@@ -116,6 +122,9 @@ int directory_add_entry(DiskInterface* disk, cache *cache, const char *path, con
                     lock(get_lock());
                     disk_write_block(disk, block, block_type);
                     unlock(get_lock());
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
                     decrease_pin_count(disk, cache, pair->inode_number, block);
                     inode_get_block(disk, cache, &node, 0, &block);
                     block_type = get_block(disk, cache, pair->inode_number, block);
@@ -131,6 +140,9 @@ int directory_add_entry(DiskInterface* disk, cache *cache, const char *path, con
                 }
                 if (entry[j].active) count++;
             }
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
             decrease_pin_count(disk, cache, pair->inode_number, block);
         }
     }
@@ -166,6 +178,9 @@ int directory_remove_entry(DiskInterface* disk, cache *cache, const char *path, 
             if (BLOCK_TYPE_DATA != *block_type)
             {
                 FPRINTF("ERROR: Not a data type block!!\n");
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
                 decrease_pin_count(disk, cache, pair->inode_number, block);
                 goto free_pair;
             }
@@ -202,6 +217,9 @@ int directory_remove_entry(DiskInterface* disk, cache *cache, const char *path, 
                     lock(get_lock());
                     disk_write_block(disk, block, block_type);
                     unlock(get_lock());
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
                     decrease_pin_count(disk, cache, pair->inode_number, block);
                     inode_get_block(disk, cache, &dir_node, 0, &block);
                     block_type = get_block(disk, cache, pair->inode_number, block);
@@ -212,6 +230,9 @@ int directory_remove_entry(DiskInterface* disk, cache *cache, const char *path, 
                     	lock(get_lock());
                         disk_write_block(disk, block, block_type);
                         unlock(get_lock());
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
                         decrease_pin_count(disk, cache, pair->inode_number, block);
                     }
                     write_block(disk, cache, block_type, pair->inode_number, block);
@@ -220,6 +241,9 @@ int directory_remove_entry(DiskInterface* disk, cache *cache, const char *path, 
                 }
                 entry++;
                 if (entry->active) count++;
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
                 decrease_pin_count(disk, cache, pair->inode_number, block);
             }
         }
@@ -243,20 +267,16 @@ int directory_list(DiskInterface* disk, cache *cache, const char *path, DirEntry
     
     if (pair->inode_number || !strcmp(path, "/"))
     {
-	printf("directory_list: before inode read\n");
         inode_read(disk, cache, pair->inode_number, &node);
-	printf("directory_list: after inode read\n");
         for (uint16_t i=0; i < UINT16_MAX; i++)
         {
-	    printf("directory_list: before inode get block\n");
             inode_get_block(disk, cache, &node, i, &block);
-	    printf("directory_list: after inode get block\n");
+#ifndef _KERNEL
             printf("Getting block number: %lu\n", block);
+#endif
             if (!block)
                 break;
-	    printf("directory_list: before get block\n");
             block_type = get_block(disk, cache, pair->inode_number, block);
-	    printf("directory_list: after get block\n");
             if (BLOCK_TYPE_DATA != *block_type)
             {
                 FPRINTF("ERROR: Not a data type block!!\n");
@@ -265,9 +285,7 @@ int directory_list(DiskInterface* disk, cache *cache, const char *path, DirEntry
             if (0 == i)
             {
                 db = (DirectoryBlock*) ( block_type + 1 );
-		printf("directory_list: before malloc\n");
                 *entries = malloc( db->entry_count * sizeof(struct DirEntry), M_MYFS, M_WAITOK );
-		printf("directory_list: after malloc\n");
                 entry = (DirEntry*) ( db + 1 );
                 number_of_entries = db->entry_count;
 		printf("directory_list: number of entries = %d\n", number_of_entries);
@@ -279,12 +297,13 @@ int directory_list(DiskInterface* disk, cache *cache, const char *path, DirEntry
             {
                 if (entry->active)
                 {
-		    printf("directory_list: before memcpy\n");
                     memcpy( &(*entries)[rv], entry, sizeof(struct DirEntry) );
-		    printf("directory_list: after memcpy\n");
                     rv++;
                 }
             }
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
             decrease_pin_count(disk, cache, pair->inode_number, block);
         }
     }
@@ -347,6 +366,9 @@ bool directory_exists_entry(DiskInterface* disk, cache *cache, const char *path,
                 entry++;
                 if (entry->active) count++;
             }
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
             decrease_pin_count(disk, cache, pair->inode_number, block);
         }
     }

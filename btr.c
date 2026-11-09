@@ -24,6 +24,9 @@ int btree_write(DiskInterface *disk, cache *cache, uint64_t block_num)
 	{
 		rv++;
 	}
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
 	decrease_pin_count(disk, cache, 0, node->block_number);
 	unlock(get_lock());
 
@@ -69,6 +72,9 @@ BTreeNode* btree_node_create(DiskInterface* disk, cache *cache, bool is_leaf, ui
 	for(int i=0; i<=MAX_KEYS; i++) node->children[i]=0;
     
     write_block(disk, cache, block_type, 0, node->block_number);
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
     decrease_pin_count(disk, cache, 0, node->block_number);
 	
 	return node;
@@ -99,6 +105,9 @@ int btree_node_read(DiskInterface* disk, cache *cache, uint64_t block_num, BTree
 	
 	// Copy node data from disk to memory structure
 	void *ptr = memcpy((char*)node, (char*)disk_node, sizeof(struct BTreeNode));
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
 	decrease_pin_count(disk, cache, 0, block_num);
 
 	if (!ptr)
@@ -126,16 +135,23 @@ int btree_node_write(DiskInterface* disk, cache *cache, BTreeNode* node)
 	
 	// Copy node data from memory to disk
 	void *ptr = memcpy((char*)mem_node, (char*)node, sizeof(struct BTreeNode));
-	decrease_pin_count(disk, cache, 0, node->block_number);
 	
 	if (!ptr)
 	{
 		FPRINTF("ERROR: Could not copy B-Tree node contents!\n");
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
+		decrease_pin_count(disk, cache, 0, node->block_number);
 		return -1;
 	}
     
 	write_block(disk, cache, block_type, 0, node->block_number);
 	
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
+	decrease_pin_count(disk, cache, 0, node->block_number);
 	return 0;
 }
 

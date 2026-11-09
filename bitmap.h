@@ -2,6 +2,7 @@
 #define BITMAP_H
 
 #include "cache.h"
+#include "alloc.h"
 
 /**
  * Bitmap operations for managing free/used blocks and inodes

@@ -85,6 +85,9 @@ void initialize_journal_entry(DiskInterface *disk, cache *cache, journal_entry_t
     lock(get_lock());
     disk_write_block(disk, journal_block, block_type);
     unlock(get_lock());
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
     decrease_pin_count(disk, cache, 0, journal_block );
     printf("Journal entry written, new head = %lu\n", sb.journal_head);
 }
@@ -213,6 +216,9 @@ clear:
     lock(get_lock());
     disk_write_block(disk, entry->block_number, block_type);
     unlock(get_lock());
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
 }
 
 static void mark_entry_synced(DiskInterface *disk, cache *cache, journal_entry_t *entry)
@@ -250,6 +256,9 @@ void sync_journal(DiskInterface *disk, cache *cache)
             sync_entry(disk, cache, prev_entry);
         }
         
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
         decrease_pin_count(disk, cache, 0, sb.journal_start + sb.journal_head );
 
         if (sb.journal_head == ( calculate_journal_size(&sb) - 2 ) ) sb.journal_head = 0;
@@ -282,6 +291,9 @@ void mark_journal_synced(DiskInterface *disk, cache *cache)
             mark_entry_synced(disk, cache, prev_entry);
         }
         
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
         decrease_pin_count(disk, cache, 0, sb.journal_start + sb.journal_head );
 
         if (sb.journal_head == ( calculate_journal_size(&sb) - 2 ) ) sb.journal_head = 0;

@@ -62,6 +62,9 @@ int inode_write(DiskInterface* disk, cache *cache, const Inode* inode, bool writ
     rv = 0;
     printf("inode_write: inode=%lu, mode=%o\n", inode->inode_number, inode->mode);
 clear_stack:
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
     decrease_pin_count(disk, cache, 0, sb.inode_bitmap + calculate_inode_bitmap_size(&sb) + inode_page);
     arc4random_buf(&sb, sizeof(struct Superblock));
     return rv;
@@ -82,6 +85,9 @@ int64_t inode_allocate(DiskInterface* disk, cache *cache, mode_t mode, bool writ
 		if ( !(ii % USABLE_BLOCK_SIZE) && ii )
 		{
 			ibmn++;
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
 			decrease_pin_count(disk, cache, 0, ibmn);
 			ibm = get_block(disk, cache, 0, ibmn);
             block_type = (block_type_t*) ibm;
@@ -122,6 +128,9 @@ int64_t inode_allocate(DiskInterface* disk, cache *cache, mode_t mode, bool writ
 
     FPRINTF("ERROR: No free inodes available for allocation!\n");
 wipe_inode:
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
     decrease_pin_count(disk, cache, 0, ibmn);
     arc4random_buf(&node, sizeof(struct Inode));
 wipe_superblock:
@@ -151,6 +160,10 @@ int inode_free(DiskInterface* disk, cache *cache, uint64_t inode_number, bool wr
     // Securely erase inode contents
     int inode_per_page = USABLE_BLOCK_SIZE / sizeof(Inode);
     int inode_page = inode_number / inode_per_page;
+#ifdef _KERNEL
+	if (ibm)
+		FREE(ibm);
+#endif
     decrease_pin_count(disk, cache, 0, ibmn);
     block_type_t *block_type = get_block(disk, cache, 0, ( sb.inode_bitmap + calculate_inode_bitmap_size(&sb) + inode_page ));
     if (BLOCK_TYPE_INODE != *block_type)
@@ -168,6 +181,9 @@ int inode_free(DiskInterface* disk, cache *cache, uint64_t inode_number, bool wr
         unlock(get_lock());
     }
     write_block(disk, cache, block_type, 0,  ( sb.inode_bitmap + calculate_inode_bitmap_size(&sb) + inode_page ) );
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
     decrease_pin_count(disk, cache, 0, ( sb.inode_bitmap + calculate_inode_bitmap_size(&sb) + inode_page ));
     printf("+ inode_free(%lu)\n", inode_number);
     if (write_through)
@@ -177,6 +193,9 @@ int inode_free(DiskInterface* disk, cache *cache, uint64_t inode_number, bool wr
         unlock(get_lock());
     }
     write_block(disk, cache, ibm, 0, ibmn);
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
     decrease_pin_count(disk, cache, 0, ibmn);
     rv = 0;
 return_rv:
@@ -205,6 +224,9 @@ int inode_get_block(DiskInterface* disk, cache *cache, Inode* inode, uint64_t bl
             uint64_t *sind = (uint64_t*)( block_type + 1 );
             sind += ( block_index - 12 );
             *physical_block = *sind;
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
             decrease_pin_count(disk, cache, inode->inode_number, inode->indirect_block);
             rv = 0;
         }
@@ -224,6 +246,9 @@ int inode_get_block(DiskInterface* disk, cache *cache, Inode* inode, uint64_t bl
         uint64_t *dind = (uint64_t*)( block_type + 1 );
         dind += double_block_page;
         uint64_t dindpn = *dind;
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
         
         block_type = get_block(disk, cache, inode->inode_number, dindpn);
         dind = (uint64_t*)( block_type + 1 );
@@ -231,12 +256,19 @@ int inode_get_block(DiskInterface* disk, cache *cache, Inode* inode, uint64_t bl
         
         if (!*dind)
         {
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
             decrease_pin_count(disk, cache, inode->inode_number, inode->double_indirect_block);
             decrease_pin_count(disk, cache, inode->inode_number, dindpn);
             return rv;
         }
         
         *physical_block = *dind;
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
+        decrease_pin_count(disk, cache, inode->inode_number, dindpn);
         rv = 0;
     }
     return rv;
@@ -274,6 +306,9 @@ int inode_set_block(DiskInterface* disk, cache *cache, Inode* inode, uint64_t bl
             disk_write_block(disk, inode->indirect_block, block_type);
             unlock(get_lock());
             #endif
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
             decrease_pin_count(disk, cache, inode->inode_number, inode->indirect_block);
         }
         
@@ -288,6 +323,9 @@ int inode_set_block(DiskInterface* disk, cache *cache, Inode* inode, uint64_t bl
         disk_write_block(disk, inode->indirect_block, block_type);
         unlock(get_lock());
         #endif
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
         decrease_pin_count(disk, cache, inode->inode_number, inode->indirect_block);
         block_type = get_block(disk, cache, inode->inode_number, physical_block);
         *block_type = BLOCK_TYPE_DATA;
@@ -297,6 +335,9 @@ int inode_set_block(DiskInterface* disk, cache *cache, Inode* inode, uint64_t bl
         disk_write_block(disk, physical_block, block_type);
         unlock(get_lock());
         #endif
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
         decrease_pin_count(disk, cache, inode->inode_number, physical_block);
         rv = 0;
     }
@@ -334,6 +375,9 @@ int inode_set_block(DiskInterface* disk, cache *cache, Inode* inode, uint64_t bl
             disk_write_block(disk, inode->indirect_block, block_type);
             unlock(get_lock());
             #endif
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
             decrease_pin_count(disk, cache, inode->inode_number, inode->double_indirect_block);
         }
         
@@ -342,6 +386,9 @@ int inode_set_block(DiskInterface* disk, cache *cache, Inode* inode, uint64_t bl
         dind += double_block_page;
         uint64_t dindpn = *dind;
         
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
         decrease_pin_count(disk, cache, inode->inode_number, inode->double_indirect_block);
         if (!*dind)
         {
@@ -356,6 +403,9 @@ int inode_set_block(DiskInterface* disk, cache *cache, Inode* inode, uint64_t bl
             disk_write_block(disk, inode->indirect_block, block_type);
             unlock(get_lock());
             #endif
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
             decrease_pin_count(disk, cache, inode->inode_number, *dind);
         }
         
@@ -370,6 +420,9 @@ int inode_set_block(DiskInterface* disk, cache *cache, Inode* inode, uint64_t bl
         disk_write_block(disk, inode->indirect_block, block_type);
         unlock(get_lock());
         #endif
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
         decrease_pin_count(disk, cache, inode->inode_number, *dind);
     }
     return rv;

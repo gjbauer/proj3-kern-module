@@ -61,6 +61,9 @@ alloc_page(DiskInterface* disk, cache *cache)
 		if ( !(ii % USABLE_BLOCK_SIZE) && ii )
 		{
 			pbmn++;
+#ifdef _KERNEL
+		FREE(pbm);
+#endif
 			decrease_pin_count(disk, cache, 0, pbmn);
 			pbm = get_block(disk, cache, 0, pbmn);
 		}
@@ -85,6 +88,10 @@ alloc_page(DiskInterface* disk, cache *cache)
 		}
 	}
 
+#ifdef _KERNEL
+		FREE(pbm);
+#endif
+	decrease_pin_count(disk, cache, 0, pbmn);
 	FPRINTF("ERROR: No free blocks available for allocation!\n");
 	return 0;  // No free blocks available
 }

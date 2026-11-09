@@ -42,6 +42,9 @@ int superblock_write(DiskInterface* disk, cache *cache, const Superblock* superb
     {
         write_block(disk, cache, block_type, 0, 0);
     }
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
     decrease_pin_count(disk, cache, 0, 0);
     return 0;
 }

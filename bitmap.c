@@ -46,6 +46,9 @@ void bitmap_print(DiskInterface *disk, void* bm, cache *cache) {
 			i=0;
 		}
 		block_type = (block_type_t*)bm;
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
 		decrease_pin_count(disk, cache, 0, (ii / USABLE_BLOCK_SIZE) );
 	}
 	printf("\n===BITMAP END===\n");
