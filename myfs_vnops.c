@@ -121,14 +121,9 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 	 * the filesystem at its mounted root.
 	 */
 	if (cnp->cn_flags & ISDOTDOT) {
-		struct nameidata nd;
 		char *ppath, *retbuf = NULL, *freebuf = NULL;
-
-		/* 1. Ensure you do NOT hold the vnode lock here */
-		lock_flags = lockstatus(dvp->v_vnlock);
-		VOP_UNLOCK(dvp);
-
-		/* 2. Get the full path */
+		
+		/* 1. Get the full path */
 		error = vn_fullpath(dvp, &retbuf, &freebuf);
 
 		if (error == 0) {
@@ -137,6 +132,29 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 		} else {
 			printf("Failed to resolve path, error: %d\n", error);
 		}
+
+		if (count_l(retbuf) > count_l(get_disk()->mount)) {
+			char *path;
+			path = from_fs_root(retbuf);
+			ppath = parent_path(path, count_l(path));
+
+			InodeBtreePair *pair = item_search(get_disk(), NULL, ppath);
+
+			error = VFS_VGET(get_disk()->mp, pair->inode_number, LK_EXCLUSIVE | LK_RETRY, ap->a_vpp);
+	
+			free(freebuf, M_TEMP);
+			FREE(ppath);
+			FREE(pair);
+
+			return (error);
+		}
+
+		struct nameidata nd;
+
+		/* 2. Ensure you do NOT hold the vnode lock here */
+		lock_flags = lockstatus(dvp->v_vnlock);
+		VOP_UNLOCK(dvp);
+
 
 		/* 3. Get parent path */
 
