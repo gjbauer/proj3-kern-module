@@ -177,7 +177,33 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 		return 0;
 	}
 
-	return (ENOENT);
+	static BTreeNode tree_node;
+
+	if (dvp->v_vflag & VV_ROOT) {
+		printf("myfs_lookup: first component\n");
+		Superblock sb;
+		superblock_read(get_disk(), NULL, &sb);
+
+		btree_node_read(get_disk(), NULL, sb.btree_root, &tree_node);
+	}
+
+	uint64_t node_block;
+	
+	node_block = btree_search(get_disk(), NULL, tree_node.block_number, path_hash(cnp->cn_nameptr));
+
+	btree_node_read(get_disk(), NULL, node_block, &tree_node);
+
+	if (FILE_TYPE_DIRECTORY == tree_node.type)
+	{
+		if (btree_node_read(get_disk(), NULL, tree_node.value, &tree_node)) return (ENOENT);
+	}
+	
+	error = VFS_VGET(get_disk()->mp, tree_node.value, LK_EXCLUSIVE | LK_RETRY, ap->a_vpp);
+
+	if (error)
+		return (error);
+
+	return 0;
 }
 
 /*
