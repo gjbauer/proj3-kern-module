@@ -243,14 +243,20 @@ int directory_list(DiskInterface* disk, cache *cache, const char *path, DirEntry
     
     if (pair->inode_number || !strcmp(path, "/"))
     {
+	printf("directory_list: before inode read\n");
         inode_read(disk, cache, pair->inode_number, &node);
+	printf("directory_list: after inode read\n");
         for (uint16_t i=0; i < UINT16_MAX; i++)
         {
+	    printf("directory_list: before inode get block\n");
             inode_get_block(disk, cache, &node, i, &block);
+	    printf("directory_list: after inode get block\n");
             printf("Getting block number: %lu\n", block);
             if (!block)
                 break;
+	    printf("directory_list: before get block\n");
             block_type = get_block(disk, cache, pair->inode_number, block);
+	    printf("directory_list: after get block\n");
             if (BLOCK_TYPE_DATA != *block_type)
             {
                 FPRINTF("ERROR: Not a data type block!!\n");
@@ -259,9 +265,12 @@ int directory_list(DiskInterface* disk, cache *cache, const char *path, DirEntry
             if (0 == i)
             {
                 db = (DirectoryBlock*) ( block_type + 1 );
+		printf("directory_list: before malloc\n");
                 *entries = malloc( db->entry_count * sizeof(struct DirEntry), M_MYFS, M_WAITOK );
+		printf("directory_list: after malloc\n");
                 entry = (DirEntry*) ( db + 1 );
                 number_of_entries = db->entry_count;
+		printf("directory_list: number of entries = %d\n", number_of_entries);
             }
             else entry = (DirEntry*) ( block_type + 1 );
             if (number_of_entries == rv) break;
@@ -270,14 +279,16 @@ int directory_list(DiskInterface* disk, cache *cache, const char *path, DirEntry
             {
                 if (entry->active)
                 {
+		    printf("directory_list: before memcpy\n");
                     memcpy( &(*entries)[rv], entry, sizeof(struct DirEntry) );
+		    printf("directory_list: after memcpy\n");
                     rv++;
                 }
             }
             decrease_pin_count(disk, cache, pair->inode_number, block);
         }
     }
-    btree_print(disk, cache, pair->btree_block, 0);
+    //btree_print(disk, cache, pair->btree_block, 0);
     printf("=== directory_list for %s ===\n", path);
     for (int i = 0; i < rv; i++) {
         printf("  entry %d: name='%s', inode=%lu, active=%d\n",
