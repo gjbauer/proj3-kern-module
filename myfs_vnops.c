@@ -45,7 +45,10 @@ static int
 myfs_vn_read(struct vop_read_args *ap)
 {
 	struct vnode *vp = ap->a_vp;
-	//struct uio *uio = ap->a_uio;
+	struct uio *uio = ap->a_uio;
+	struct myfs_node *fs_node = vp->v_data;
+	Inode *node = fs_node->inode;
+	int rv = -1;
 
 	if (vp->v_type == VDIR)
 		return (EISDIR);
@@ -53,8 +56,69 @@ myfs_vn_read(struct vop_read_args *ap)
 	if (vp->v_type != VREG)
 		return (EINVAL);
 
+	// Check if offset is beyond file size
+	if (uio->uio_offset >= node->size) {
+		goto exit; // Nothing to read
+	}
+
+	// Adjust size if it would read beyond the end of the file
+	if (uio->uio_offset + uio->uio_resid > node->size) {
+		uio->uio_resid = node->size - uio->uio_offset;
+	}
+
+	if (uio->uio_resid == 0) {
+		goto exit;
+	}
+
+	int remaining = uio->uio_resid;
+	off_t current_offset = uio->uio_offset;
+
+	while (remaining > 0) {
+		// Calculate which page we're reading from
+		int page_index = current_offset / USABLE_BLOCK_SIZE;
+		int page_offset = current_offset % USABLE_BLOCK_SIZE;
+
+		// Get the physical page number for this logical page
+		uint64_t pnum = 0;
+
+		rv = inode_get_block(get_disk(), NULL, node, page_index, &pnum);
+
+		if (rv) {
+			goto exit;
+		}
+
+		if (!pnum) {
+			break; // No page allocated here
+		}
+
+		// Get pointer to the page data
+		block_type_t *block_type = (block_type_t*) get_block(get_disk(), NULL, node->inode_number, pnum);
+		// For data blocks, we need to skip the block type header
+		char *data_area = (char*)(block_type + 1);
+
+		// Adjust calculations to account for block type header
+		int data_offset = page_offset;
+		int available_data = USABLE_BLOCK_SIZE - data_offset;
+		int bytes_to_read = available_data;
+		if (bytes_to_read > remaining) {
+			bytes_to_read = remaining;
+		}
+
+		// Copy data from page to buffer (after block type header)
+		//memcpy(buf + bytes_read, data_area + data_offset, bytes_to_read);
+		vn_io_fault_uiomove(data_area, bytes_to_read, uio);
+
+		// Update counters
+		remaining -= bytes_to_read;
+		current_offset += bytes_to_read;
+	}
+	rv = 0;
+
+exit:
+	printf("read(%s, %ld bytes, @+%ld) -> %d\n", fs_node->relative_path, uio->uio_resid, uio->uio_offset, rv);
+	return rv;
 	/* Read implementation would go here */
-	return (EOPNOTSUPP);
+	//return (EOPNOTSUPP);
 }
 
 static int
@@ -400,12 +464,18 @@ static int
 myfs_reclaim(struct vop_reclaim_args *ap)
 {
 	struct vnode *vp = ap->a_vp;
+	struct myfs_node *node = vp->v_data;
 
 	printf("myfs_reclaim: ENTER vnode=%p type=%d data=%p\n",
 		vp, vp->v_type, vp->v_data);
 
-	if (vp->v_data)
+	if (vp->v_data) {
+		if (node->inode)
+			FREE(node->inode);
+		if (node->relative_path)
+			FREE(node->relative_path);
 		FREE(vp->v_data);
+	}
 	vp->v_data = NULL;
 
 	printf("myfs_reclaim: EXIT\n");
