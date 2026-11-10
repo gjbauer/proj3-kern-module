@@ -48,7 +48,7 @@ myfs_vn_read(struct vop_read_args *ap)
 	struct uio *uio = ap->a_uio;
 	struct myfs_node *fs_node = vp->v_data;
 	Inode *node = fs_node->inode;
-	int rv = -1;
+	int rv = 0;
 
 	if (vp->v_type == VDIR)
 		return (EISDIR);
@@ -62,9 +62,9 @@ myfs_vn_read(struct vop_read_args *ap)
 	}
 
 	// Adjust size if it would read beyond the end of the file
-	if (uio->uio_offset + uio->uio_resid > node->size) {
+	/*if (uio->uio_offset + uio->uio_resid > node->size) {
 		uio->uio_resid = node->size - uio->uio_offset;
-	}
+	}*/
 
 	if (uio->uio_resid == 0) {
 		goto exit;
