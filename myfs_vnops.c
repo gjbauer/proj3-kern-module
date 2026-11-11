@@ -139,8 +139,8 @@ myfs_vn_create(struct vop_create_args *ap)
 {
 	printf("myfs create call\n");
 	struct vattr *vap = ap->a_vap;
-	struct vnode **vpp = ap->a_vpp;
-	struct myfs_node *fs_node = (*vpp)->v_data;
+	struct vnode *dvp = ap->a_dvp;
+	struct myfs_node *fs_node = dvp->v_data;
 	struct componentname *cnp = ap->a_cnp;
 	int rv = -1;
 	char *relative_path = NULL;
@@ -180,8 +180,9 @@ myfs_vn_mknod(struct vop_mknod_args *ap)
 {
 	printf("myfs mknod call\n");
 	struct vattr *vap = ap->a_vap;
+	struct vnode *dvp = ap->a_dvp;
 	struct vnode **vpp = ap->a_vpp;
-	struct myfs_node *fs_node = (*vpp)->v_data;
+	struct myfs_node *fs_node = dvp->v_data;
 	struct componentname *cnp = ap->a_cnp;
 	int rv = -1;
 	char *relative_path = NULL;
@@ -374,6 +375,21 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 	}
 
 	InodeBtreePair *pair = item_search(get_disk(), NULL, relative_path);
+
+	if (!pair->inode_number) {
+		FREE(relative_path);
+
+		if (cnp->cn_nameiop == CREATE &&
+		(cnp->cn_flags & ISLASTCN)) {
+		printf("myfs_lookup: missing final component, "
+			"returning EJUSTRETURN\n");
+			return (EJUSTRETURN);
+		}
+
+		return (ENOENT);
+	}
+
+
 	error = VFS_VGET(get_disk()->mp, pair->inode_number, LK_EXCLUSIVE | LK_RETRY, ap->a_vpp);
 	FREE(pair);
 
