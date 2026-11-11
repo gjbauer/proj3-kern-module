@@ -1,20 +1,20 @@
 #include "lock.h"
 #include "myfs.h"
 
-struct mtx s_lock;
+struct sx s_lock;
 
-struct mtx *get_lock(void)
+struct sx *get_lock(void)
 {
 	return &s_lock;
 }
 
 
-void lock(struct mtx *mtx)
+void lock(struct sx *sx)
 {
-	mtx_lock(mtx);
+	sx_xlock(sx);
 }
 
-void unlock(struct mtx *mtx)
+void unlock(struct sx *sx)
 {
-	mtx_unlock(mtx);
+	sx_xunlock(sx);
 }

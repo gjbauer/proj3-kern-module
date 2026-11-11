@@ -217,7 +217,7 @@ static vfs_init_t myfs_init;
 static int
 myfs_init(struct vfsconf *vfsp)
 {
-	mtx_init(get_lock(), "global_nbtrfs_lock", NULL, MTX_DEF);
+	sx_init(get_lock(), "global_nbtrfs_lock");
 	printf("myfs: filesystem initialized\n");
 	return (0);
 }
@@ -226,7 +226,7 @@ static vfs_uninit_t myfs_uninit;
 static int
 myfs_uninit(struct vfsconf *vfsp)
 {
-	mtx_destroy(get_lock());
+	sx_destroy(get_lock());
 	printf("myfs: filesystem uninitialized\n");
 	return (0);
 }

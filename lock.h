@@ -1,10 +1,10 @@
 #ifndef LOCK_H
 #define LOCK_H
 
-struct mtx *get_lock(void);
+struct sx *get_lock(void);
 
-void lock(struct mtx *mtx);
+void lock(struct sx *sx);
 
-void unlock(struct mtx *mtx);
+void unlock(struct sx *sx);
 
 #endif
