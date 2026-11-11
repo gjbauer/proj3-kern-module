@@ -144,31 +144,19 @@ myfs_vfs_unmount(struct mount *mp, int mntflags)
 	struct myfs_mount *mntdata = mp->mnt_data;
 	int error, flags = 0;
 
-	printf("myfs_unmount: ENTER\n");
-
 	if (mntflags & MNT_FORCE)
 		flags |= FORCECLOSE;
 
-	printf("myfs_unmount: before vflush\n");
-
 	error = vflush(mp, 0, flags, curthread);
-
-	printf("myfs_unmount: after vflush error=%d\n", error);
 
 	if (error)
 		return (error);
-
-	printf("myfs_unmount: before disk_close\n");
 
 	if (get_disk()) {
 		disk_close(get_disk());
 		set_disk(NULL);
 	}
 
-	printf("myfs_unmount: after disk_close\n");
-
-	printf("myfs_unmount: before device vnode cleanup\n");
-	
 	vn_lock(mntdata->mnt_devvp, LK_EXCLUSIVE | LK_RETRY);
 
 	if (mntdata->mnt_devvp) {
@@ -193,8 +181,6 @@ myfs_vfs_root(struct mount *mp, int flags, struct vnode **vpp)
 	struct vnode *nvp;
 	int error;
 
-	printf("myfs_root: entering\n");
-
 	error = VFS_VGET(mp, 0, flags, &nvp);
 
 	struct myfs_node *node = nvp->v_data;
@@ -204,18 +190,10 @@ myfs_vfs_root(struct mount *mp, int flags, struct vnode **vpp)
 		strcpy(node->relative_path, "/");
 	}
 
-	printf("myfs_root: VFS_VGET returned %d\n", error);
-
 	if (error)
 		return (error);
 
-	printf("myfs_root: vnode=%p, type=%d, usecount=%d\n",
-		nvp, nvp->v_type, nvp->v_usecount);
-
 	*vpp = nvp;
-
-	printf("myfs_root: vnode lock state=%d, current thread=%p\n",
-		VOP_ISLOCKED(nvp), curthread);
 
 	printf("myfs_root: returning\n");
 

@@ -9,6 +9,9 @@
 #include "inode.h"
 #include "hash.h"
 #include "lock.h"
+#ifdef _KERNEL
+#include <geom/geom.h>
+#endif
 
 // ==================== DISK OPERATIONS ====================
 

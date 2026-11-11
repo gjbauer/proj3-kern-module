@@ -105,7 +105,6 @@ myfs_vn_read(struct vop_read_args *ap)
 		}
 
 		// Copy data from page to buffer (after block type header)
-		//memcpy(buf + bytes_read, data_area + data_offset, bytes_to_read);
 		vn_io_fault_uiomove(data_area, bytes_to_read, uio);
 
 		// Update counters
@@ -117,8 +116,6 @@ myfs_vn_read(struct vop_read_args *ap)
 exit:
 	printf("read(%s, %ld bytes, @+%ld) -> %d\n", fs_node->relative_path, uio->uio_resid, uio->uio_offset, rv);
 	return rv;
-	/* Read implementation would go here */
-	//return (EOPNOTSUPP);
 }
 
 static int
@@ -138,6 +135,98 @@ myfs_vn_write(struct vop_write_args *ap)
 }
 
 static int
+myfs_vn_create(struct vop_create_args *ap)
+{
+	printf("myfs create call\n");
+	struct vattr *vap = ap->a_vap;
+	struct vnode **vpp = ap->a_vpp;
+	struct myfs_node *fs_node = (*vpp)->v_data;
+	struct componentname *cnp = ap->a_cnp;
+	int rv = -1;
+	char *relative_path = NULL;
+	if (strlen(fs_node->relative_path) == 1)
+	{
+		relative_path = MALLOC(cnp->cn_namelen + 2);
+		snprintf(relative_path, cnp->cn_namelen + 2, "/%s", cnp->cn_nameptr);
+	}
+	else
+	{
+		relative_path = MALLOC(cnp->cn_namelen + strlen(fs_node->relative_path) + 2);
+		snprintf(relative_path, cnp->cn_namelen + strlen(fs_node->relative_path) + 2, "%s/%s", fs_node->relative_path, cnp->cn_nameptr);
+	}
+	journal_entry_t entry;
+	entry.type = TT_MKNOD;
+	entry.synced = false;
+	strncpy(entry.mknod.path, relative_path, PATH_MAX);
+	switch (vap->va_type) {
+		case VDIR: entry.mknod.mode = S_IFDIR | vap->va_mode; break;
+		case VREG: entry.mknod.mode = S_IFREG | vap->va_mode; break;
+		case VLNK: entry.mknod.mode = S_IFLNK | vap->va_mode; break;
+		case VCHR: entry.mknod.mode = S_IFCHR | vap->va_mode; break;
+		case VBLK: entry.mknod.mode = S_IFBLK | vap->va_mode; break;
+		case VFIFO: entry.mknod.mode = S_IFIFO | vap->va_mode; break;
+		case VSOCK: entry.mknod.mode = S_IFSOCK | vap->va_mode; break;
+		default: entry.mknod.mode = 0 | vap->va_mode; break;
+	}
+
+	entry.mknod.inode_number = 0;
+	rv = _mknod(get_disk(), NULL, relative_path, entry.mknod.mode, 0, false, &entry.mknod.inode_number);
+	initialize_journal_entry(get_disk(), NULL, &entry);
+	FREE(relative_path);
+	return rv;
+}
+static int
+myfs_vn_mknod(struct vop_mknod_args *ap)
+{
+	printf("myfs mknod call\n");
+	struct vattr *vap = ap->a_vap;
+	struct vnode **vpp = ap->a_vpp;
+	struct myfs_node *fs_node = (*vpp)->v_data;
+	struct componentname *cnp = ap->a_cnp;
+	int rv = -1;
+	char *relative_path = NULL;
+	if (strlen(fs_node->relative_path) == 1)
+	{
+		relative_path = MALLOC(cnp->cn_namelen + 2);
+		snprintf(relative_path, cnp->cn_namelen + 2, "/%s", cnp->cn_nameptr);
+	}
+	else
+	{
+		relative_path = MALLOC(cnp->cn_namelen + strlen(fs_node->relative_path) + 2);
+		snprintf(relative_path, cnp->cn_namelen + strlen(fs_node->relative_path) + 2, "%s/%s", fs_node->relative_path, cnp->cn_nameptr);
+	}
+	journal_entry_t entry;
+	entry.type = TT_MKNOD;
+	entry.synced = false;
+	strncpy(entry.mknod.path, relative_path, PATH_MAX);
+	switch (vap->va_type) {
+		case VDIR: entry.mknod.mode = S_IFDIR | vap->va_mode; break;
+		case VREG: entry.mknod.mode = S_IFREG | vap->va_mode; break;
+		case VLNK: entry.mknod.mode = S_IFLNK | vap->va_mode; break;
+		case VCHR: entry.mknod.mode = S_IFCHR | vap->va_mode; break;
+		case VBLK: entry.mknod.mode = S_IFBLK | vap->va_mode; break;
+		case VFIFO: entry.mknod.mode = S_IFIFO | vap->va_mode; break;
+		case VSOCK: entry.mknod.mode = S_IFSOCK | vap->va_mode; break;
+		default: entry.mknod.mode = 0 | vap->va_mode; break;
+	}
+
+	entry.mknod.inode_number = 0;
+	rv = _mknod(get_disk(), NULL, relative_path, entry.mknod.mode, 0, false, &entry.mknod.inode_number);
+	initialize_journal_entry(get_disk(), NULL, &entry);
+	FREE(relative_path);
+
+	vgone(*vpp);
+	vput(*vpp);
+	rv = VFS_VGET(ap->a_dvp->v_mount, entry.mknod.inode_number, LK_EXCLUSIVE | LK_RETRY, vpp);
+	if (rv) {
+		*vpp = NULL;
+		return (rv);
+	}
+
+	return rv;
+}
+
+static int
 myfs_vn_getattr(struct vop_getattr_args *ap)
 {
 	struct vnode *vp = ap->a_vp;
@@ -151,15 +240,15 @@ myfs_vn_getattr(struct vop_getattr_args *ap)
 	/* Return default attributes */
 	VATTR_NULL(vap);
 	vap->va_type = vp->v_type;
-	vap->va_mode = 0755;
+	vap->va_mode = ip->mode & 07777;
 	vap->va_nlink = 1;
-	vap->va_uid = 0;
-	vap->va_gid = 0;
+	vap->va_uid = ip->owner_id;
+	vap->va_gid = ip->group_id;
 	vap->va_fsid = vp->v_mount->mnt_stat.f_fsid.val[0];
 	vap->va_fileid = ip->inode_number;
-	vap->va_size = 0;
+	vap->va_size = ip->size;
 	vap->va_blocksize = BLOCK_SIZE;
-	vap->va_bytes = 0;
+	vap->va_bytes = ip->size;
 
 	printf("myfs_getattr: EXIT vp=%p\n", vp);
 
@@ -505,5 +594,7 @@ struct vop_vector myfs_vnodeops = {
 	.vop_strategy =		myfs_vn_strategy,
 	.vop_reclaim =		myfs_reclaim,
 	.vop_access =		myfs_vn_access,
+	.vop_mknod =		myfs_vn_mknod,
+	.vop_create =		myfs_vn_create,
 };
 VFS_VOP_VECTOR_REGISTER(myfs_vnodeops);

@@ -27,7 +27,18 @@ get_block(DiskInterface* disk, cache *cache, uint64_t inum, uint64_t pnum)
 void
 write_block(DiskInterface* disk, cache *cache, void *buf, int64_t inum, uint64_t pnum)
 {
+	struct buf *bp;
+	int error;
 
+	error = bread(disk->vp, pnum * (BLOCK_SIZE / DEV_BSIZE), BLOCK_SIZE, NOCRED, &bp);
+	if (error != 0)
+		return;
+
+	BUF_ASSERT_LOCKED(bp);
+
+	bcopy(buf, bp->b_data, BLOCK_SIZE);
+
+	bwrite(bp);
 }
 
 void decrease_pin_count(DiskInterface* disk, cache *cache, uint64_t inum, uint64_t pnum)

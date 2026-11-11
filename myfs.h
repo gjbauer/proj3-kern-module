@@ -38,6 +38,8 @@
 #include "alloc.h"
 #include "string.h"
 #include "directory.h"
+#include "metadata-api.h"
+#include "journal.h"
 
 MALLOC_DECLARE(M_MYFS);
 

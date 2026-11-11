@@ -150,15 +150,13 @@ int disk_read_block(DiskInterface* disk, uint64_t block_num, void* buffer)
  */
 int disk_write_block(DiskInterface* disk, uint64_t block_num, const void* buffer)
 {
-	int rv = -1;
-	void *block = disk_get_block(disk, block_num);
-	
-	// Copy user buffer to block location
-	if (memcpy(block, buffer, BLOCK_SIZE)) {
-		rv = 0;
-	}
-	
-	return rv;
+	struct myfs_mount *mount = disk->mp->mnt_data;
+	struct g_consumer *mnt_cp = mount->mnt_cp;	/* GEOM consumer */
+
+	off_t offset = (off_t)block_num * BLOCK_SIZE;
+
+	return (g_write_data(mnt_cp, offset, __DECONST(void *, buffer),
+		BLOCK_SIZE));
 }
 
 /**
