@@ -40,7 +40,7 @@ InodeBtreePair * item_search(DiskInterface* disk, cache *cache, const char *path
 	printf("item_search: after malloc\n");
     Superblock *sb = MALLOC(sizeof(struct Superblock));
     BTreeNode *node = MALLOC(sizeof(struct BTreeNode));
-    char *curr_path = MALLOC(sizeof(char)*PATH_MAX);;
+    char curr_path[PATH_MAX];
 	printf("item_search: before memset\n");
     memset(curr_path, '\0', PATH_MAX);
 	printf("item_search: after memset\n");
@@ -96,8 +96,6 @@ InodeBtreePair * item_search(DiskInterface* disk, cache *cache, const char *path
 wipe_token:
     arc4random_buf(token, strlen(token) * sizeof(char));
     FREE(token);
-    arc4random_buf(curr_path, strlen(curr_path) * sizeof(char));
-    FREE(curr_path);
 return_pair:
     arc4random_buf(sb, sizeof(struct Superblock));
     arc4random_buf(node, sizeof(struct BTreeNode));
