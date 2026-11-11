@@ -170,8 +170,13 @@ myfs_vn_create(struct vop_create_args *ap)
 	}
 
 	entry.mknod.inode_number = 0;
+	printf("CREATE: before _mknod\n");
 	rv = _mknod(get_disk(), NULL, relative_path, entry.mknod.mode, 0, false, &entry.mknod.inode_number);
+	printf("CREATE: after _mknod rv=%d ino=%ju\n",
+		rv, (uintmax_t)entry.mknod.inode_number);
+	printf("CREATE: before initialize_journal_entry\n");
 	initialize_journal_entry(get_disk(), NULL, &entry);
+	printf("CREATE: after initialize_journal_entry\n");
 	FREE(relative_path);
 	return rv;
 }

@@ -84,13 +84,13 @@ int64_t inode_allocate(DiskInterface* disk, cache *cache, mode_t mode, bool writ
 	for (uint64_t ii = 0; BLOCK_TYPE_BITMAP == *block_type; ++ii) {
 		if ( !(ii % USABLE_BLOCK_SIZE) && ii )
 		{
-			ibmn++;
 #ifdef _KERNEL
 		FREE(block_type);
 #endif
 			decrease_pin_count(disk, cache, 0, ibmn);
+			ibmn++;
 			ibm = get_block(disk, cache, 0, ibmn);
-            block_type = (block_type_t*) ibm;
+        		block_type = (block_type_t*) ibm;
 		}
 		if (!bitmap_get(ibm, ii - ((ibmn - sb.inode_bitmap) * USABLE_BLOCK_SIZE))) {  // Found a free inode
 			if (bitmap_put(ibm, ii - ((ibmn - sb.inode_bitmap) * USABLE_BLOCK_SIZE), 1))  // Mark it as allocated
@@ -119,10 +119,10 @@ int64_t inode_allocate(DiskInterface* disk, cache *cache, mode_t mode, bool writ
                 disk_write_block(disk, ibmn, ibm);
                 unlock(get_lock());
             }
-            write_block(disk, cache, ibm, 0, ibmn);
+			write_block(disk, cache, ibm, 0, ibmn);
 			printf("+ inode_allocate() -> %lu\n", ii);
 			rv = ii;
-            goto wipe_inode;
+			goto wipe_inode;
 		}
 	}
 

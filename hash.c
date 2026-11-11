@@ -35,16 +35,24 @@ uint64_t path_hash(const char *path) {
  */
 InodeBtreePair * item_search(DiskInterface* disk, cache *cache, const char *path)
 {
+	printf("item_search: before malloc\n");
     InodeBtreePair *pair = MALLOC(sizeof(struct InodeBtreePair));
+	printf("item_search: after malloc\n");
     Superblock sb;
     BTreeNode node;
     char curr_path[PATH_MAX];
+	printf("item_search: before memset\n");
     memset(curr_path, '\0', PATH_MAX);
+	printf("item_search: after memset\n");
     
     pair->inode_number = 0;
     pair->btree_block = 0;
+	printf("item_search: before sb read\n");
     superblock_read(disk, cache, &sb);
+	printf("item_search: after sb read\n");
+	printf("item_search: before btree read\n");
     btree_node_read(disk, cache, sb.btree_root, &node);
+	printf("item_search: after btree read\n");
     
     if (!strcmp("/", path))
     {
