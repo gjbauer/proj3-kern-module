@@ -10,7 +10,10 @@
 int directory_add_entry(DiskInterface* disk, cache *cache, const char *path, const char* name, uint64_t target_inode, FileType type, bool write_through)
 {
     int rv = -1;
+    printf("DIR_ADD: ENTER path=%p name=%p\n", path, name);
+	printf("DIR_ADD: before item_search\n");
     InodeBtreePair *pair = item_search(disk, cache, path);
+    printf("DIR_ADD: after item_search, pair=%p\n", pair);
     Inode node = {0};
     uint64_t block;
     uint16_t count = 0;

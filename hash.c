@@ -39,7 +39,7 @@ InodeBtreePair * item_search(DiskInterface* disk, cache *cache, const char *path
     InodeBtreePair *pair = MALLOC(sizeof(struct InodeBtreePair));
 	printf("item_search: after malloc\n");
     Superblock sb;
-    BTreeNode node;
+    BTreeNode *node = MALLOC(sizeof(struct BTreeNode));
     char curr_path[PATH_MAX];
 	printf("item_search: before memset\n");
     memset(curr_path, '\0', PATH_MAX);
@@ -51,13 +51,13 @@ InodeBtreePair * item_search(DiskInterface* disk, cache *cache, const char *path
     superblock_read(disk, cache, &sb);
 	printf("item_search: after sb read\n");
 	printf("item_search: before btree read\n");
-    btree_node_read(disk, cache, sb.btree_root, &node);
+    btree_node_read(disk, cache, sb.btree_root, node);
 	printf("item_search: after btree read\n");
     
     if (!strcmp("/", path))
     {
-        pair->inode_number = node.value;
-        pair->btree_block = node.block_number;
+        pair->inode_number = node->value;
+        pair->btree_block = node->block_number;
         goto return_pair;
     }
     
@@ -67,22 +67,22 @@ InodeBtreePair * item_search(DiskInterface* disk, cache *cache, const char *path
     for (int i=1; i <= count_l(path); i++) {
         token = split(path, i);
         printf("Searching for %s, hash = %lu\n", token, path_hash(token));
-        //btree_print(disk, cache, node.block_number, 0);
-        node_block = btree_search(disk, cache, node.block_number, path_hash(token));
+        //btree_print(disk, cache, node->block_number, 0);
+        node_block = btree_search(disk, cache, node->block_number, path_hash(token));
         if (node_block)
         {
             size_t len = strlen(curr_path);
             snprintf(curr_path + len, sizeof(curr_path) - len, "/%s", token);
-            btree_node_read(disk, cache, node_block, &node);
+            btree_node_read(disk, cache, node_block, node);
             // If not a directory, this will not be a valid B-Tree node, and its contents will not copy...
-            if (FILE_TYPE_DIRECTORY == node.type)
+            if (FILE_TYPE_DIRECTORY == node->type)
             {
-                if (btree_node_read(disk, cache, node.value, &node)) goto wipe_token;
+                if (btree_node_read(disk, cache, node->value, node)) goto wipe_token;
             }
             if (!strcmp(path, curr_path))
             {
-                if (FILE_TYPE_DIRECTORY == node.type) pair->btree_block = node.block_number;
-                pair->inode_number = node.value;
+                if (FILE_TYPE_DIRECTORY == node->type) pair->btree_block = node->block_number;
+                pair->inode_number = node->value;
                 goto wipe_token;
             }
         }
@@ -98,7 +98,8 @@ wipe_token:
     FREE(token);
 return_pair:
     arc4random_buf(&sb, sizeof(struct Superblock));
-    arc4random_buf(&node, sizeof(struct BTreeNode));
+    arc4random_buf(node, sizeof(struct BTreeNode));
+    FREE(node);
     arc4random_buf(&curr_path, sizeof(curr_path));
     return pair;
 }
