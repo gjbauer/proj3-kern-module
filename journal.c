@@ -86,6 +86,7 @@ void initialize_journal_entry(DiskInterface *disk, cache *cache, journal_entry_t
     superblock_write(disk, cache, &sb, true);
 
     memcpy(prev_entry, entry, sizeof(struct journal_entry_t));
+	write_block(disk, cache, block_type, 0, journal_block);
     lock(get_lock());
     disk_write_block(disk, journal_block, block_type);
     unlock(get_lock());
@@ -217,6 +218,7 @@ clear:
     
     block_type_t *block_type;
     block_type = ( (block_type_t*) entry - 1 );
+    write_block(disk, cache, block_type, 0, entry->block_number);
     lock(get_lock());
     disk_write_block(disk, entry->block_number, block_type);
     unlock(get_lock());
@@ -231,6 +233,7 @@ static void mark_entry_synced(DiskInterface *disk, cache *cache, journal_entry_t
     
     block_type_t *block_type;
     block_type = ( (block_type_t*) entry - 1 );
+    write_block(disk, cache, entry->block_number, 0, block);
     lock(get_lock());
     disk_write_block(disk, entry->block_number, block_type);
     unlock(get_lock());

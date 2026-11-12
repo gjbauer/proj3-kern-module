@@ -176,9 +176,11 @@ myfs_vn_create(struct vop_create_args *ap)
 		rv, (uintmax_t)entry->mknod.inode_number);
 	printf("CREATE: before initialize_journal_entry\n");
 	initialize_journal_entry(get_disk(), NULL, entry);
+	rv = VFS_VGET(dvp->v_mount, entry->mknod.inode_number, LK_EXCLUSIVE | LK_RETRY, ap->a_vpp);
 	printf("CREATE: after initialize_journal_entry\n");
 	FREE(relative_path);
 	FREE(entry);
+
 	return rv;
 }
 static int

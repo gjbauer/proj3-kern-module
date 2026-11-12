@@ -115,6 +115,7 @@ int directory_add_entry(DiskInterface* disk, cache *cache, const char *path, con
                         }
                     }
                     memcpy( &entry[j], &new_file, sizeof(struct DirEntry) );
+                    write_block(disk, cache, block_type, 0, block);
 			lock(get_lock());
 			disk_write_block(disk, block, block_type);
 			unlock(get_lock());

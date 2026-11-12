@@ -19,6 +19,7 @@ int btree_write(DiskInterface *disk, cache *cache, uint64_t block_num)
 	}
 	BTreeNode *node = (BTreeNode*)( block_type + 1 );
 
+        write_block(disk, cache, node->block_number, 0, block);
 	lock(get_lock());
 	if (!disk_write_block(disk, node->block_number, block_type))
 	{
@@ -201,7 +202,6 @@ static int btree_find_depth(DiskInterface* disk, cache *cache, uint64_t node_blo
 	int depth=0;
 	while (true) {
 		if (node->is_leaf) {
-			arc4random_buf(node, sizeof(struct BTreeNode));
             		goto exit;  // Reached a leaf, return current depth
 		}
 	
