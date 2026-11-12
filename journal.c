@@ -66,6 +66,9 @@ void initialize_journal_entry(DiskInterface *disk, cache *cache, journal_entry_t
     if (*block_type != BLOCK_TYPE_JOURNAL) {
         FPRINTF("ERROR: Block %lu is not a journal block! type=0x%x\n", journal_block, *block_type);
         // Don't proceed - journal is corrupted
+#ifdef _KERNEL
+	FREE(block_type);
+#endif
         return;
     }
 
@@ -74,6 +77,7 @@ void initialize_journal_entry(DiskInterface *disk, cache *cache, journal_entry_t
     if (!prev_entry->synced) {
         printf("Found existing journal entry, syncing...\n");
         sync_entry(disk, cache, prev_entry);
+    	block_type = (block_type_t*)get_block(disk, cache, 0, journal_block);
     }
 
     if (sb.journal_head == ( calculate_journal_size(&sb) - 2 ) ) sb.journal_head = 0;

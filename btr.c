@@ -19,16 +19,12 @@ int btree_write(DiskInterface *disk, cache *cache, uint64_t block_num)
 	}
 	BTreeNode *node = (BTreeNode*)( block_type + 1 );
 
-	//lock(get_lock());
+	lock(get_lock());
 	if (!disk_write_block(disk, node->block_number, block_type))
 	{
 		rv++;
 	}
-	//unlock(get_lock());
-#ifdef _KERNEL
-		FREE(block_type);
-#endif
-	decrease_pin_count(disk, cache, 0, node->block_number);
+	unlock(get_lock());
 
 	for (int i=0; i <= node->num_keys; i++)
 	{
@@ -38,6 +34,10 @@ int btree_write(DiskInterface *disk, cache *cache, uint64_t block_num)
 		}
 		else break;
 	}
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
+	decrease_pin_count(disk, cache, 0, node->block_number);
 	return rv;
 }
 
@@ -50,7 +50,6 @@ BTreeNode* btree_node_create(DiskInterface* disk, cache *cache, bool is_leaf, ui
 	// Allocate a new disk block for this node
 	*page = alloc_page(disk, cache);
 	if (!*page) return NULL;
-	printf("create: *page = %ld\n", *page);
 	
 	// Get pointer to the allocated block
 	block_type_t *block_type = (block_type_t*)get_block(disk, cache, 0, *page);
@@ -72,14 +71,7 @@ BTreeNode* btree_node_create(DiskInterface* disk, cache *cache, bool is_leaf, ui
 	for(int i=0; i<MAX_KEYS; i++) node->keys[i]=0;
 	for(int i=0; i<=MAX_KEYS; i++) node->children[i]=0;
     
-    write_block(disk, cache, block_type, 0, node->block_number);
-	lock(get_lock());
-	disk_write_block(disk, node->block_number, block_type);
-	unlock(get_lock());
-#ifdef _KERNEL
-		FREE(block_type);
-#endif
-    decrease_pin_count(disk, cache, 0, node->block_number);
+	write_block(disk, cache, block_type, 0, node->block_number);
 	
 	return node;
 }
@@ -129,10 +121,7 @@ int btree_node_read(DiskInterface* disk, cache *cache, uint64_t block_num, BTree
  */
 int btree_node_write(DiskInterface* disk, cache *cache, BTreeNode* node)
 {
-	printf("btrnwrite - before get block\n");
-	printf("btrnwrite - block number = %ld\n", node->block_number);
 	block_type_t *block_type = (block_type_t*) get_block(disk, cache, 0, node->block_number);
-	printf("btrnwrite - after get block\n");
 	if (*block_type != BLOCK_TYPE_BTREE_NODE)
 	{
 		FPRINTF("ERROR: Not a valid B-Tree node!\n");
@@ -153,9 +142,7 @@ int btree_node_write(DiskInterface* disk, cache *cache, BTreeNode* node)
 		return -1;
 	}
     
-	printf("btrnwrite - before write block\n");
 	write_block(disk, cache, block_type, 0, node->block_number);
-	printf("btrnwrite - after write block\n");
 	
 #ifdef _KERNEL
 		FREE(block_type);
@@ -481,39 +468,44 @@ int btree_insert(DiskInterface* disk, cache *cache, uint64_t root_block, uint64_
 	BTreeNode *target = MALLOC(sizeof(struct BTreeNode));
 	btree_node_read(disk, cache, target_block, target);
 	
-	/*if (target.num_keys == MAX_KEYS) {
-		if (target.keys[MAX_KEYS - 1] < key && target.children[MAX_KEYS]==0)
+	if (target->num_keys == MAX_KEYS) {
+		if (target->keys[MAX_KEYS - 1] < key && target->children[MAX_KEYS]==0)
 		{
-			target.children[MAX_KEYS]=node->block_number;
-			node->parent=target.block_number;
-			btree_node_write(disk, cache, &target);
+			target->children[MAX_KEYS]=node->block_number;
+			node->parent=target->block_number;
+			btree_node_write(disk, cache, target);
 		} else {
-			if (target.parent != 0) {
-				BTreeNode parent;
-				btree_node_read(disk, cache, target.parent, &parent);
+			if (target->parent != 0) {
+				BTreeNode *parent = MALLOC(sizeof(struct BTreeNode));
+				btree_node_read(disk, cache, target->parent, parent);
 				int i;
-				for(i=0; i<MAX_KEYS && parent.keys[i] < btree_find_maximum(disk, cache, target.block_number) && parent.keys[i]!=0; i++);
-				btree_split_child(disk, cache, &parent, i, &target);
+				for(i=0; i<MAX_KEYS && parent->keys[i] < btree_find_maximum(disk, cache, target->block_number) && parent->keys[i]!=0; i++);
+				btree_split_child(disk, cache, parent, i, target);
 				target_block = btree_insertion_search(disk, cache, root_block, key);
-				btree_node_read(disk, cache, target_block, &target);
+				btree_node_read(disk, cache, target_block, target);
+				FREE(parent);
 			} else {
-				btree_split_root(disk, cache, &target);
+				btree_split_root(disk, cache, target);
 				target_block = btree_insertion_search(disk, cache, root_block, key);
-				btree_node_read(disk, cache, target_block, &target);
+				btree_node_read(disk, cache, target_block, target);
 			}
-			btree_insert_nonfull(disk, cache, &target, node);
-			btree_node_write(disk, cache, &target);
+			btree_insert_nonfull(disk, cache, target, node);
+			btree_node_write(disk, cache, target);
 		}
 	}
 	else
 	{
-		btree_insert_nonfull(disk, cache, &target, node);
-		btree_node_write(disk, cache, &target);
-	}*/
+		btree_insert_nonfull(disk, cache, target, node);
+		btree_node_write(disk, cache, target);
+	}
 
 	btree_update_parent_keys(disk, cache, target);
 	btree_node_write(disk, cache, node);
 	arc4random_buf(target, sizeof(struct BTreeNode));
+	arc4random_buf(node, sizeof(struct BTreeNode));
+	
+	block_type_t *block_type = ((block_type_t*) node) - 1;
+	FREE(block_type);
 	FREE(target);
 	
 	return 0;

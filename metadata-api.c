@@ -32,6 +32,7 @@ print:
     arc4random_buf(name, sizeof(char)*strlen(name));
     FREE(parent);
     FREE(name);
+    rv = 0;
     printf("mknod(%s, %04o) -> %d\n", path, mode, rv);
     return rv;
 }
