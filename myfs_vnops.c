@@ -154,30 +154,31 @@ myfs_vn_create(struct vop_create_args *ap)
 		relative_path = MALLOC(cnp->cn_namelen + strlen(fs_node->relative_path) + 2);
 		snprintf(relative_path, cnp->cn_namelen + strlen(fs_node->relative_path) + 2, "%s/%s", fs_node->relative_path, cnp->cn_nameptr);
 	}
-	journal_entry_t entry;
-	entry.type = TT_MKNOD;
-	entry.synced = false;
-	strncpy(entry.mknod.path, relative_path, PATH_MAX);
+	journal_entry_t *entry = MALLOC(sizeof(struct journal_entry_t));
+	entry->type = TT_MKNOD;
+	entry->synced = false;
+	strncpy(entry->mknod.path, relative_path, PATH_MAX);
 	switch (vap->va_type) {
-		case VDIR: entry.mknod.mode = S_IFDIR | vap->va_mode; break;
-		case VREG: entry.mknod.mode = S_IFREG | vap->va_mode; break;
-		case VLNK: entry.mknod.mode = S_IFLNK | vap->va_mode; break;
-		case VCHR: entry.mknod.mode = S_IFCHR | vap->va_mode; break;
-		case VBLK: entry.mknod.mode = S_IFBLK | vap->va_mode; break;
-		case VFIFO: entry.mknod.mode = S_IFIFO | vap->va_mode; break;
-		case VSOCK: entry.mknod.mode = S_IFSOCK | vap->va_mode; break;
-		default: entry.mknod.mode = 0 | vap->va_mode; break;
+		case VDIR: entry->mknod.mode = S_IFDIR | vap->va_mode; break;
+		case VREG: entry->mknod.mode = S_IFREG | vap->va_mode; break;
+		case VLNK: entry->mknod.mode = S_IFLNK | vap->va_mode; break;
+		case VCHR: entry->mknod.mode = S_IFCHR | vap->va_mode; break;
+		case VBLK: entry->mknod.mode = S_IFBLK | vap->va_mode; break;
+		case VFIFO: entry->mknod.mode = S_IFIFO | vap->va_mode; break;
+		case VSOCK: entry->mknod.mode = S_IFSOCK | vap->va_mode; break;
+		default: entry->mknod.mode = 0 | vap->va_mode; break;
 	}
 
-	entry.mknod.inode_number = 0;
+	entry->mknod.inode_number = 0;
 	printf("CREATE: before _mknod\n");
-	rv = _mknod(get_disk(), NULL, relative_path, entry.mknod.mode, 0, false, &entry.mknod.inode_number);
+	rv = _mknod(get_disk(), NULL, relative_path, entry->mknod.mode, 0, false, &entry->mknod.inode_number);
 	printf("CREATE: after _mknod rv=%d ino=%ju\n",
-		rv, (uintmax_t)entry.mknod.inode_number);
+		rv, (uintmax_t)entry->mknod.inode_number);
 	printf("CREATE: before initialize_journal_entry\n");
-	initialize_journal_entry(get_disk(), NULL, &entry);
+	initialize_journal_entry(get_disk(), NULL, entry);
 	printf("CREATE: after initialize_journal_entry\n");
 	FREE(relative_path);
+	FREE(entry);
 	return rv;
 }
 static int

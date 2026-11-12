@@ -55,10 +55,6 @@ int directory_add_entry(DiskInterface* disk, cache *cache, const char *path, con
                     db->entry_count = 0;
                 }
                 write_block(disk, cache, block_type, 0, block);
-#ifdef _KERNEL
-		FREE(block_type);
-#endif
-		decrease_pin_count(disk, cache, pair->inode_number, block);
             }
             else block_type = get_block(disk, cache, pair->inode_number, block);
             
@@ -115,16 +111,27 @@ int directory_add_entry(DiskInterface* disk, cache *cache, const char *path, con
                         new_file.btree_block = dir_root_page;
                     }
                     else {
+			printf("before btree_insert\n");
                         if (btree_insert(disk, cache, pair->btree_block, path_hash(name), target_inode, type) != 0) {
                             // B-tree insertion failed
                             rv = -1;
                             goto free_pair;
                         }
+			printf("after btree_insert\n");
                     }
                     memcpy( &entry[j], &new_file, sizeof(struct DirEntry) );
-                    lock(get_lock());
-                    disk_write_block(disk, block, block_type);
-                    unlock(get_lock());
+		    printf("DIR_ADD: acquiring sx lock\n");
+lock(get_lock());
+
+printf("DIR_ADD: acquired sx lock\n");
+printf("DIR_ADD: entering g_write_data\n");
+
+int error = disk_write_block(disk, block, block_type);
+
+printf("DIR_ADD: g_write_data returned %d\n", error);
+
+unlock(get_lock());
+printf("DIR_ADD: released sx lock\n");
 #ifdef _KERNEL
 		FREE(block_type);
 #endif
@@ -133,9 +140,9 @@ int directory_add_entry(DiskInterface* disk, cache *cache, const char *path, con
                     block_type = get_block(disk, cache, pair->inode_number, block);
                     db = (DirectoryBlock*) ( block_type + 1 );
                     db->entry_count = number_of_entries;
-                    lock(get_lock());
+                    //lock(get_lock());
                     disk_write_block(disk, block, block_type);
-                    unlock(get_lock());
+                    //unlock(get_lock());
                     write_block(disk, cache, block_type, 0, block);
                     btree_write(disk, cache, pair->btree_block);
                     rv = 0;

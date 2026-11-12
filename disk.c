@@ -83,7 +83,7 @@ alloc_page(DiskInterface* disk, cache *cache)
 			disk_write_block(disk, pbmn, pbm);
 			unlock(get_lock());
             
-			//printf("+ alloc_page() -> %d\n", ii);
+			printf("+ alloc_page() -> %d\n", ii);
 			return ii;
 		}
 	}
