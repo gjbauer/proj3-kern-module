@@ -21,11 +21,7 @@ int _mknod(DiskInterface *disk, cache *cache, const char *path, mode_t mode, uin
     node.mode = mode;
     rv = inode_write(disk, cache, &node, write_through);
     if (rv) goto print;
-    printf("MKNOD: before directory_add_entry "
-       "parent='%s' name='%s' inode=%ju\n",
-    parent, name, (uintmax_t)node.inode_number);
     rv = directory_add_entry(disk, cache, parent, name, node.inode_number, ( mode & S_IFMT), write_through);
-    printf("MKNOD: after directory_add_entry rv=%d\n", rv);
 print:
     arc4random_buf(&node, sizeof(struct Inode));
     arc4random_buf(parent, sizeof(char)*strlen(parent));
@@ -47,6 +43,7 @@ int _unlink(DiskInterface *disk, cache *cache, const char *path, bool write_thro
     if (directory_exists_entry(disk, cache, parent, name, NULL))
     {
         directory_remove_entry(disk, cache, parent, name, write_through);
+	printf("_unlink: after remove_entry\n");
     }
     if (btree_search(disk, cache, pair->btree_block, path_hash(name)))
     {

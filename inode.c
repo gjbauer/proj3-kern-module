@@ -82,7 +82,7 @@ int64_t inode_allocate(DiskInterface* disk, cache *cache, mode_t mode, bool writ
 
 	// Search through all inodes to find first free one
 	for (uint64_t ii = 0; BLOCK_TYPE_BITMAP == *block_type; ++ii) {
-		if ( !(ii % USABLE_BLOCK_SIZE) && ii )
+		if ( !(ii % ( USABLE_BLOCK_SIZE * 8) ) && ii )
 		{
 #ifdef _KERNEL
 		FREE(block_type);
@@ -146,8 +146,8 @@ int inode_free(DiskInterface* disk, cache *cache, uint64_t inode_number, bool wr
     
     // Calculate which bitmap block and bit offset
     uint64_t bitmap_start = sb.inode_bitmap;
-    uint64_t bitmap_block_index = inode_number / USABLE_BLOCK_SIZE;  // Which bitmap block
-    uint64_t bit_offset_in_block = inode_number % USABLE_BLOCK_SIZE; // Which bit within the block
+    uint64_t bitmap_block_index = inode_number / ( USABLE_BLOCK_SIZE * 8);  // Which bitmap block
+    uint64_t bit_offset_in_block = inode_number % ( USABLE_BLOCK_SIZE * 8); // Which bit within the block
     
     uint64_t ibmn = bitmap_start + bitmap_block_index;
     void* ibm = get_block(disk, cache, 0, ibmn);
@@ -157,13 +157,20 @@ int inode_free(DiskInterface* disk, cache *cache, uint64_t inode_number, bool wr
         FPRINTF("ERROR: Selected inode could not be freed!\n");
         goto return_rv;
     }
+    write_block(disk, cache, ibm, 0, ibmn);
+    if (write_through)
+    {
+    	lock(get_lock());
+        disk_write_block(disk, ibmn, ibm);
+        unlock(get_lock());
+    }
+#ifdef _KERNEL
+		FREE(ibm);
+#endif
+    	decrease_pin_count(disk, cache, 0, ibmn);
     // Securely erase inode contents
     int inode_per_page = USABLE_BLOCK_SIZE / sizeof(Inode);
     int inode_page = inode_number / inode_per_page;
-#ifdef _KERNEL
-	if (ibm)
-		FREE(ibm);
-#endif
     decrease_pin_count(disk, cache, 0, ibmn);
     block_type_t *block_type = get_block(disk, cache, 0, ( sb.inode_bitmap + calculate_inode_bitmap_size(&sb) + inode_page ));
     if (BLOCK_TYPE_INODE != *block_type)
@@ -174,29 +181,18 @@ int inode_free(DiskInterface* disk, cache *cache, uint64_t inode_number, bool wr
     Inode *node = ( (Inode*)( block_type + 1) + ( inode_number % inode_per_page ) );
     // Use memset(0) because we want our inodes to contain 0 data upon initialization
     memset(node, 0, sizeof(struct Inode) );
+    write_block(disk, cache, block_type, 0,  ( sb.inode_bitmap + calculate_inode_bitmap_size(&sb) + inode_page ) );
     if (write_through)
     {
     	lock(get_lock());
         disk_write_block(disk, ( sb.inode_bitmap + calculate_inode_bitmap_size(&sb) + inode_page ), block_type);
         unlock(get_lock());
     }
-    write_block(disk, cache, block_type, 0,  ( sb.inode_bitmap + calculate_inode_bitmap_size(&sb) + inode_page ) );
 #ifdef _KERNEL
 		FREE(block_type);
 #endif
     decrease_pin_count(disk, cache, 0, ( sb.inode_bitmap + calculate_inode_bitmap_size(&sb) + inode_page ));
     printf("+ inode_free(%lu)\n", inode_number);
-    if (write_through)
-    {
-    	lock(get_lock());
-        disk_write_block(disk, ibmn, ibm);
-        unlock(get_lock());
-    }
-    write_block(disk, cache, ibm, 0, ibmn);
-#ifdef _KERNEL
-		FREE(block_type);
-#endif
-    decrease_pin_count(disk, cache, 0, ibmn);
     rv = 0;
 return_rv:
     arc4random_buf(&sb, sizeof(struct Superblock));

@@ -32,16 +32,13 @@ int superblock_write(DiskInterface* disk, cache *cache, const Superblock* superb
     block_type_t *block_type = (block_type_t*)get_block(disk, cache, 0, 0);
     if (*block_type != BLOCK_TYPE_SUPER) return -1;
     memcpy( (Superblock*) ( block_type + 1 ), superblock, sizeof(struct Superblock));
-    if (write_through)
+    write_block(disk, cache, block_type, 0, 0);
+    /*if (write_through)
     {
     	lock(get_lock());
         disk_write_block(disk, 0, block_type);
         unlock(get_lock());
-    }
-    else
-    {
-        write_block(disk, cache, block_type, 0, 0);
-    }
+    }*/
 #ifdef _KERNEL
 		FREE(block_type);
 #endif

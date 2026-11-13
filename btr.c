@@ -19,7 +19,7 @@ int btree_write(DiskInterface *disk, cache *cache, uint64_t block_num)
 	}
 	BTreeNode *node = (BTreeNode*)( block_type + 1 );
 
-        write_block(disk, cache, node->block_number, 0, block);
+        write_block(disk, cache, block_type, 0, node->block_number);
 	lock(get_lock());
 	if (!disk_write_block(disk, node->block_number, block_type))
 	{
@@ -627,41 +627,44 @@ uint64_t btree_borrow_right(DiskInterface* disk, cache *cache, BTreeNode *node)
 static 
 void btree_remove_key(DiskInterface* disk, cache *cache, uint64_t root_block, uint64_t key)
 {
-    BTreeNode current;
-    btree_node_read(disk, cache, root_block, &current);
+    BTreeNode *current = MALLOC(sizeof(struct BTreeNode));
+    btree_node_read(disk, cache, root_block, current);
     
-    while (!current.is_leaf) {
-        BTreeNode first_child;
-        btree_node_read(disk, cache, current.children[0], &first_child);
+    while (!current->is_leaf) {
+        BTreeNode *first_child = MALLOC(sizeof(struct BTreeNode));
+        btree_node_read(disk, cache, current->children[0], first_child);
         
-        if (first_child.is_leaf) {
+        if (first_child->is_leaf) {
             break;
         }
         
-        int child_idx = current.num_keys;
-        for (int i = current.num_keys; i > 0; i--) {
-            if (key <= current.keys[i]) {
+        int child_idx = current->num_keys;
+        for (int i = current->num_keys; i > 0; i--) {
+            if (key <= current->keys[i]) {
                 child_idx = i;
                 break;
             }
             child_idx = i - 1;
         }
         
-        btree_node_read(disk, cache, current.children[child_idx], &current);
+        btree_node_read(disk, cache, current->children[child_idx], current);
+	FREE(first_child);
     }
-    btree_node_read(disk, cache, current.parent, &current);
+    btree_node_read(disk, cache, current->parent, current);
     
     int child_to_remove = -1;
-    for (int i = 0; i <= current.num_keys; i++) {
-        if (current.children[i] != 0) {
-            BTreeNode child;
-            btree_node_read(disk, cache, current.children[i], &child);
-            if (child.is_leaf && child.key == key) {
+    for (int i = 0; i <= current->num_keys; i++) {
+        if (current->children[i] != 0) {
+            BTreeNode *child = MALLOC(sizeof(struct BTreeNode));
+            btree_node_read(disk, cache, current->children[i], child);
+            if (child->is_leaf && child->key == key) {
                 child_to_remove = i;
-                arc4random_buf(&child, sizeof(BTreeNode));
+                arc4random_buf(child, sizeof(struct BTreeNode));
+		FREE(child);
                 break;
             }
-            arc4random_buf(&child, sizeof(BTreeNode));
+            arc4random_buf(child, sizeof(BTreeNode));
+	    FREE(child);
         }
     }
     
@@ -671,61 +674,65 @@ void btree_remove_key(DiskInterface* disk, cache *cache, uint64_t root_block, ui
     }
     
     // Remove the child
-    for (int j = child_to_remove; j < current.num_keys; j++) {
-        current.keys[j] = current.keys[j+1];
+    for (int j = child_to_remove; j < current->num_keys; j++) {
+        current->keys[j] = current->keys[j+1];
     }
-    for (int j = child_to_remove; j <= current.num_keys; j++) {
-        current.children[j] = current.children[j+1];
+    for (int j = child_to_remove; j <= current->num_keys; j++) {
+        current->children[j] = current->children[j+1];
     }
     
-    current.num_keys--;
+    current->num_keys--;
     
-    if (child_to_remove == current.num_keys) {
-        current.keys[current.num_keys] = 0;
+    if (child_to_remove == current->num_keys) {
+        current->keys[current->num_keys] = 0;
     }
-    current.children[current.num_keys + 1] = 0;
+    current->children[current->num_keys + 1] = 0;
     
-    btree_node_write(disk, cache, &current);
+    btree_node_write(disk, cache, current);
     
     // Now handle underflow...
     uint64_t rv = 0;
-    if (current.num_keys < MIN_KEYS) {
-        rv = btree_borrow_left(disk, cache, &current);
+    if (current->num_keys < MIN_KEYS) {
+        rv = btree_borrow_left(disk, cache, current);
         if (rv==0) {
-            rv = btree_borrow_right(disk, cache, &current);
+            rv = btree_borrow_right(disk, cache, current);
             if (rv==0) {
-                if (current.parent != 0)
+                if (current->parent != 0)
                 {
-                    BTreeNode grandparent;
-                    btree_node_read(disk, cache, current.parent, &grandparent);
+                    BTreeNode *grandparent = MALLOC(sizeof(struct BTreeNode));
+                    btree_node_read(disk, cache, current->parent, grandparent);
                     int j;
-                    for(j=0; j<MAX_KEYS && grandparent.keys[j] < key && grandparent.keys[j]!=0; j++);
-                    btree_merge_children(disk, cache, &grandparent, j);
-                    btree_node_write(disk, cache, &grandparent);
-                    arc4random_buf(&grandparent, sizeof(struct BTreeNode));
+                    for(j=0; j<MAX_KEYS && grandparent->keys[j] < key && grandparent->keys[j]!=0; j++);
+                    btree_merge_children(disk, cache, grandparent, j);
+                    btree_node_write(disk, cache, grandparent);
+                    arc4random_buf(grandparent, sizeof(struct BTreeNode));
+		    FREE(grandparent);
                 }
-                else if (btree_find_depth(disk, cache, current.block_number) > 1)
+                else if (btree_find_depth(disk, cache, current->block_number) > 1)
                 {
-                    btree_merge_children(disk, cache, &current, 0);
-                    btree_node_write(disk, cache, &current);
-                    btree_promote_root(disk, cache, &current);
+                    btree_merge_children(disk, cache, current, 0);
+                    btree_node_write(disk, cache, current);
+                    btree_promote_root(disk, cache, current);
                 }
             }
         }
     }
+    FREE(current);
 }
 
 uint64_t btree_delete(DiskInterface* disk, cache *cache, uint64_t root_block, uint64_t key)
 {
 	uint64_t rv = btree_search(disk, cache, root_block, key);
-	BTreeNode node;
+	BTreeNode *node = MALLOC(sizeof(struct BTreeNode));
 	
 	if (rv!=0)
 	{
-        	btree_node_read(disk, cache, rv, &node);
-		btree_remove_key(disk, cache, node.parent, key);
+        	btree_node_read(disk, cache, rv, node);
+		btree_remove_key(disk, cache, node->parent, key);
 		btree_node_free(disk, cache, rv);
 	}
+
+	FREE(node);
 	
 	return rv;
 }

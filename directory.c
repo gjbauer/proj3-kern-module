@@ -145,7 +145,7 @@ int directory_add_entry(DiskInterface* disk, cache *cache, const char *path, con
     }
 free_pair:
     arc4random_buf(pair, sizeof(struct InodeBtreePair));
-    free(pair, M_MYFS);
+    FREE(pair);
     return rv;
 }
 
@@ -207,10 +207,9 @@ int directory_remove_entry(DiskInterface* disk, cache *cache, const char *path, 
                         	btree_delete(disk, cache, pair->btree_block, path_hash(name));
                         	btree_write(disk, cache, pair->btree_block);
                         }
-                        btree_print(disk, cache, pair->btree_block , 0);
-                        if (write_through)
-                        	btree_write(disk, cache, pair->btree_block);
+                        //btree_print(disk, cache, pair->btree_block , 0);
                     }
+                    write_block(disk, cache, block_type, 0, block);
                     lock(get_lock());
                     disk_write_block(disk, block, block_type);
                     unlock(get_lock());
@@ -222,6 +221,7 @@ int directory_remove_entry(DiskInterface* disk, cache *cache, const char *path, 
                     block_type = get_block(disk, cache, pair->inode_number, block);
                     db = (DirectoryBlock*) ( block_type + 1 );
                     db->entry_count = number_of_entries;
+                    write_block(disk, cache, block_type, pair->inode_number, block);
                     if (write_through)
                     {
                     	lock(get_lock());
@@ -232,22 +232,17 @@ int directory_remove_entry(DiskInterface* disk, cache *cache, const char *path, 
 #endif
                         decrease_pin_count(disk, cache, pair->inode_number, block);
                     }
-                    write_block(disk, cache, block_type, pair->inode_number, block);
                     rv = 0;
                     break;
                 }
                 entry++;
                 if (entry->active) count++;
-#ifdef _KERNEL
-		FREE(block_type);
-#endif
-                decrease_pin_count(disk, cache, pair->inode_number, block);
             }
         }
     }
 free_pair:
     arc4random_buf(pair, sizeof(struct InodeBtreePair));
-    free(pair, M_MYFS);
+    FREE(pair);
     return rv;
 }
 

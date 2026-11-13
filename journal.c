@@ -218,10 +218,13 @@ clear:
     
     block_type_t *block_type;
     block_type = ( (block_type_t*) entry - 1 );
-    write_block(disk, cache, block_type, 0, entry->block_number);
-    lock(get_lock());
-    disk_write_block(disk, entry->block_number, block_type);
-    unlock(get_lock());
+    if (entry->type != TT_UNINITIALIZED)
+    {
+    	write_block(disk, cache, block_type, 0, entry->block_number);
+    	lock(get_lock());
+    	disk_write_block(disk, entry->block_number, block_type);
+    	unlock(get_lock());
+    }
 #ifdef _KERNEL
 		FREE(block_type);
 #endif
@@ -233,7 +236,7 @@ static void mark_entry_synced(DiskInterface *disk, cache *cache, journal_entry_t
     
     block_type_t *block_type;
     block_type = ( (block_type_t*) entry - 1 );
-    write_block(disk, cache, entry->block_number, 0, block);
+    write_block(disk, cache, block_type, 0, entry->block_number);
     lock(get_lock());
     disk_write_block(disk, entry->block_number, block_type);
     unlock(get_lock());

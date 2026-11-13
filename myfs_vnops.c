@@ -236,6 +236,19 @@ myfs_vn_mknod(struct vop_mknod_args *ap)
 }
 
 static int
+myfs_vn_remove(struct vop_remove_args * ap)
+{
+	struct vnode *vp = ap->a_vp;
+	struct myfs_node *fs_node = vp->v_data;
+	journal_entry_t entry;
+	entry.type = TT_UNLINK;
+	entry.synced = false;
+	strcpy(entry.unlink.path, fs_node->relative_path);
+	initialize_journal_entry(get_disk(), NULL, &entry);
+	return _unlink(get_disk(), NULL, fs_node->relative_path, false);
+}
+
+static int
 myfs_vn_getattr(struct vop_getattr_args *ap)
 {
 	struct vnode *vp = ap->a_vp;
@@ -620,5 +633,6 @@ struct vop_vector myfs_vnodeops = {
 	.vop_access =		myfs_vn_access,
 	.vop_mknod =		myfs_vn_mknod,
 	.vop_create =		myfs_vn_create,
+	.vop_remove =		myfs_vn_remove,
 };
 VFS_VOP_VECTOR_REGISTER(myfs_vnodeops);
