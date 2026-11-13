@@ -106,11 +106,6 @@ int directory_add_entry(DiskInterface* disk, cache *cache, const char *path, con
                             goto free_pair;
                         }
                         new_file.btree_block = dir_root_page;
-			BTreeNode *origin = MALLOC(sizeof(struct BTreeNode));
-			btree_node_read(disk, cache, pair->btree_block, origin);
-			origin->type = FILE_TYPE_DIRECTORY;
-                        btree_node_write(disk, cache, origin);
-			FREE(origin);
                     }
                     else {
                         if (btree_insert(disk, cache, pair->btree_block, path_hash(name), target_inode, type) != 0) {
