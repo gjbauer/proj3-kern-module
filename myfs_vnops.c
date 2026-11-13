@@ -249,6 +249,61 @@ myfs_vn_remove(struct vop_remove_args * ap)
 }
 
 static int
+myfs_dir_isempty(struct vnode *vp)
+{
+	struct myfs_node *fs_node = vp->v_data;
+	Inode *inode = fs_node->inode;
+	DirectoryBlock *db;
+	uint64_t count_block = inode->direct_blocks[0];
+
+	block_type_t *block_type = get_block(get_disk(), NULL, inode->inode_number, count_block);
+
+	if (BLOCK_TYPE_DATA != *block_type)
+		return 0;
+
+	db = (DirectoryBlock*)( block_type + 1 );
+
+	return ( 0 == db->entry_count ) ? 0 : 1;
+}
+
+static int
+myfs_vn_rmdir(struct vop_rmdir_args *ap)
+{
+    struct vnode *dvp = ap->a_dvp;
+    struct vnode *vp = ap->a_vp;
+    struct componentname *cnp = ap->a_cnp;
+    struct vop_remove_args remove_ap;
+
+    /* 1. Ensure the target is actually a directory */
+    if (vp->v_type != VDIR)
+        return (ENOTDIR);
+
+    /* 2. Reject attempts to remove "." or ".." */
+    if (dvp == vp || (cnp->cn_flags & ISDOTDOT) != 0)
+        return (EINVAL);
+
+    /* 3. Verify the directory is empty */
+    if (!myfs_dir_isempty(vp))
+        return (ENOTEMPTY);
+
+    /* 4. Delegate to the remove implementation */
+    remove_ap.a_gen.a_desc = &vop_remove_desc;
+    remove_ap.a_dvp = dvp;
+    remove_ap.a_vp = vp;
+    remove_ap.a_cnp = cnp;
+
+    return (myfs_vn_remove(&remove_ap));
+}
+
+static int
+myfs_vn_mkdir(struct vop_mkdir_args *ap)
+{
+    ap->a_vap->va_type = VDIR;
+
+    return (myfs_vn_mknod((struct vop_mknod_args *)ap));
+}
+
+static int
 myfs_vn_getattr(struct vop_getattr_args *ap)
 {
 	struct vnode *vp = ap->a_vp;
@@ -634,5 +689,7 @@ struct vop_vector myfs_vnodeops = {
 	.vop_mknod =		myfs_vn_mknod,
 	.vop_create =		myfs_vn_create,
 	.vop_remove =		myfs_vn_remove,
+	.vop_rmdir =		myfs_vn_rmdir,
+	.vop_mkdir =		myfs_vn_mkdir,
 };
 VFS_VOP_VECTOR_REGISTER(myfs_vnodeops);
