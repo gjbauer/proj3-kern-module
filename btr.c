@@ -323,20 +323,21 @@ int btree_insert_nonfull(DiskInterface* disk, cache *cache, BTreeNode *root, BTr
 		int child_pos = 0;
 		for(int j = 0; j <= root->num_keys; j++) {
 			if(root->children[j] != 0) {
-				BTreeNode child;
-				btree_node_read(disk, cache, root->children[j], &child);
-				if(child.is_leaf && child.key < node->key) {
+				BTreeNode *child = MALLOC(sizeof(struct BTreeNode));
+				btree_node_read(disk, cache, root->children[j], child);
+				if(child->is_leaf && child->key < node->key) {
 					child_pos = j + 1;
-				} else if(!child.is_leaf) {
-					uint64_t max_key = btree_find_maximum(disk, cache, child.block_number);
+				} else if(!child->is_leaf) {
+					uint64_t max_key = btree_find_maximum(disk, cache, child->block_number);
 					if(max_key < node->key) {
 						child_pos = j + 1;
 					}
-                    else {
-                        child_pos = j;
-                    }
+                   			else {
+                        			child_pos = j;
+                    			}
 				}
-				arc4random_buf(&child, sizeof(struct BTreeNode));
+				arc4random_buf(child, sizeof(struct BTreeNode));
+				FREE(child);
 			}
             else break;
 		}
@@ -495,7 +496,9 @@ int btree_insert(DiskInterface* disk, cache *cache, uint64_t root_block, uint64_
 	}
 	else
 	{
+		printf("before insertion non-full\n");
 		btree_insert_nonfull(disk, cache, target, node);
+		printf("after insertion non-full\n");
 		btree_node_write(disk, cache, target);
 	}
 

@@ -61,11 +61,6 @@ myfs_vn_read(struct vop_read_args *ap)
 		goto exit; // Nothing to read
 	}
 
-	// Adjust size if it would read beyond the end of the file
-	/*if (uio->uio_offset + uio->uio_resid > node->size) {
-		uio->uio_resid = node->size - uio->uio_offset;
-	}*/
-
 	if (uio->uio_resid == 0) {
 		goto exit;
 	}
@@ -170,14 +165,9 @@ myfs_vn_create(struct vop_create_args *ap)
 	}
 
 	entry->mknod.inode_number = 0;
-	printf("CREATE: before _mknod\n");
 	rv = _mknod(get_disk(), NULL, relative_path, entry->mknod.mode, 0, false, &entry->mknod.inode_number);
-	printf("CREATE: after _mknod rv=%d ino=%ju\n",
-		rv, (uintmax_t)entry->mknod.inode_number);
-	printf("CREATE: before initialize_journal_entry\n");
 	initialize_journal_entry(get_disk(), NULL, entry);
 	rv = VFS_VGET(dvp->v_mount, entry->mknod.inode_number, LK_EXCLUSIVE | LK_RETRY, ap->a_vpp);
-	printf("CREATE: after initialize_journal_entry\n");
 	FREE(relative_path);
 	FREE(entry);
 
@@ -224,8 +214,6 @@ myfs_vn_mknod(struct vop_mknod_args *ap)
 	initialize_journal_entry(get_disk(), NULL, &entry);
 	FREE(relative_path);
 
-	vgone(*vpp);
-	vput(*vpp);
 	rv = VFS_VGET(ap->a_dvp->v_mount, entry.mknod.inode_number, LK_EXCLUSIVE | LK_RETRY, vpp);
 	if (rv) {
 		*vpp = NULL;
@@ -256,6 +244,9 @@ myfs_dir_isempty(struct vnode *vp)
 	DirectoryBlock *db;
 	uint64_t count_block = inode->direct_blocks[0];
 
+	if (!inode->direct_blocks[0])
+		return 1;
+
 	block_type_t *block_type = get_block(get_disk(), NULL, inode->inode_number, count_block);
 
 	if (BLOCK_TYPE_DATA != *block_type)
@@ -263,7 +254,7 @@ myfs_dir_isempty(struct vnode *vp)
 
 	db = (DirectoryBlock*)( block_type + 1 );
 
-	return ( 0 == db->entry_count ) ? 0 : 1;
+	return ( 0 == db->entry_count ) ? 1 : 0;
 }
 
 static int

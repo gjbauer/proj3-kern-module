@@ -99,12 +99,14 @@ int directory_add_entry(DiskInterface* disk, cache *cache, const char *path, con
                         btree_node_write(disk, cache, dir_root);
                         
                         // Insert this root node into the parent's B-tree
+			printf("before btree insert\n");
                         if (btree_insert(disk, cache, pair->btree_block, path_hash(name), dir_root_page, type) != 0) {
                             // B-tree insertion failed, clean up
                             btree_node_free(disk, cache, dir_root_page);
                             rv = -1;
                             goto free_pair;
                         }
+			printf("after btree insert\n");
                         new_file.btree_block = dir_root_page;
                     }
                     else {
