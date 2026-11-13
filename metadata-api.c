@@ -22,6 +22,7 @@ int _mknod(DiskInterface *disk, cache *cache, const char *path, mode_t mode, uin
     rv = inode_write(disk, cache, &node, write_through);
     if (rv) goto print;
     rv = directory_add_entry(disk, cache, parent, name, node.inode_number, ( mode & S_IFMT), write_through);
+    printf("after add entry\n");
 print:
     arc4random_buf(&node, sizeof(struct Inode));
     arc4random_buf(parent, sizeof(char)*strlen(parent));
