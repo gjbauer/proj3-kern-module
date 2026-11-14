@@ -237,6 +237,35 @@ myfs_vn_remove(struct vop_remove_args * ap)
 }
 
 static int
+myfs_vn_link(struct vop_link_args *ap)
+{
+	struct vnode *tdvp = ap->a_tdvp;
+	struct vnode *ovp = ap->a_vp;
+	struct myfs_node *tdnode = tdvp->v_data, *onode = ovp->v_data;
+	struct componentname *cnp = ap->a_cnp;
+	char *from = onode->relative_path, *to;
+
+	if (strlen(tdnode->relative_path) == 1)
+	{
+		to = MALLOC(cnp->cn_namelen + 2);
+		snprintf(to, cnp->cn_namelen + 2, "/%s", cnp->cn_nameptr);
+	}
+	else
+	{
+		to = MALLOC(cnp->cn_namelen + strlen(tdnode->relative_path) + 2);
+		snprintf(to, cnp->cn_namelen + strlen(tdnode->relative_path) + 2, "%s/%s", tdnode->relative_path, cnp->cn_nameptr);
+	}
+
+	journal_entry_t entry;
+	entry.type = TT_LINK;
+	entry.synced = false;
+	strcpy(entry.link.from, from);
+	strcpy(entry.link.to, to);
+	initialize_journal_entry(get_disk(), NULL, &entry);
+	return _link(get_disk(), NULL, from, to, false);
+}
+
+static int
 myfs_dir_isempty(struct vnode *vp)
 {
 	struct myfs_node *fs_node = vp->v_data;
@@ -710,5 +739,6 @@ struct vop_vector myfs_vnodeops = {
 	.vop_rmdir =		myfs_vn_rmdir,
 	.vop_mkdir =		myfs_vn_mkdir,
 	.vop_setattr =		myfs_vn_setattr,
+	.vop_link =		myfs_vn_link,
 };
 VFS_VOP_VECTOR_REGISTER(myfs_vnodeops);
