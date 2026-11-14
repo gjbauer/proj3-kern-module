@@ -116,14 +116,19 @@ int _link(DiskInterface *disk, cache *cache, const char *from, const char *to, b
     return rv;
 }
 
-int _chmod(DiskInterface *disk, cache *cache, const char *path, mode_t mode, bool write_through)
+int _chmod(DiskInterface *disk, cache *cache, const char *path, mode_t mode, int uid, int gid, bool write_through)
 {
     int rv = -1;
     InodeBtreePair *pair = item_search(disk, cache, path);
     Inode node;
     rv = inode_read(disk, cache, pair->inode_number, &node);
     if (rv) return rv;
-    node.mode = mode;
+    if (mode != -1)
+    	node.mode = mode;
+    if (uid != -1)
+	    node.owner_id = uid;
+    if (gid != -1)
+	    node.group_id = gid;
     rv = inode_write(disk, cache, &node, write_through);
     arc4random_buf(pair, sizeof(struct InodeBtreePair));
     arc4random_buf(&node, sizeof(struct Inode));

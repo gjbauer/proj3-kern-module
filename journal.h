@@ -48,6 +48,8 @@ typedef struct journal_entry_t
         {
             char path[PATH_MAX];
             mode_t mode;
+	    int gid;
+	    int uid;
         } chmod;
         struct
         {

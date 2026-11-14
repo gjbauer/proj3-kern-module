@@ -197,7 +197,7 @@ clear:
             break;
         case TT_CHMOD:
             printf("CHMOD\n");
-            _chmod(disk, cache, entry->chmod.path, entry->chmod.mode, true);
+            _chmod(disk, cache, entry->chmod.path, entry->chmod.mode, entry->chmod.uid, entry->chmod.gid, true);
             break;
         case TT_TRUNCATE:
             printf("TRUNCATE\n");

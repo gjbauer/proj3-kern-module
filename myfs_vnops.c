@@ -324,6 +324,30 @@ myfs_vn_getattr(struct vop_getattr_args *ap)
 }
 
 static int
+myfs_vn_setattr(struct vop_setattr_args *ap)
+{
+	struct vnode *vp = ap->a_vp;
+	struct vattr *vap = ap->a_vap;
+	struct myfs_node *fs_node = vp->v_data;
+	Inode *inode = fs_node->inode;
+    
+	journal_entry_t entry;
+	entry.type = TT_CHMOD;
+	entry.synced = false;
+	strcpy(entry.chmod.path, fs_node->relative_path);
+	if (vap->va_mode != (mode_t)VNOVAL)
+	{
+		entry.chmod.mode = (inode->mode & S_IFMT) | vap->va_mode;
+	}
+	else
+		entry.chmod.mode = vap->va_mode;
+	entry.chmod.uid = vap->va_uid;
+	entry.chmod.gid = vap->va_gid;
+	initialize_journal_entry(get_disk(), NULL, &entry);
+	return _chmod(get_disk(), NULL, fs_node->relative_path, entry.chmod.mode, entry.chmod.uid, entry.chmod.gid, false);
+}
+
+static int
 myfs_vn_lookup(struct vop_lookup_args *ap)
 {
 	/* Directory lookup implementation would go here */
@@ -682,5 +706,6 @@ struct vop_vector myfs_vnodeops = {
 	.vop_remove =		myfs_vn_remove,
 	.vop_rmdir =		myfs_vn_rmdir,
 	.vop_mkdir =		myfs_vn_mkdir,
+	.vop_setattr =		myfs_vn_setattr,
 };
 VFS_VOP_VECTOR_REGISTER(myfs_vnodeops);
