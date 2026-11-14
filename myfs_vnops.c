@@ -330,6 +330,7 @@ myfs_vn_setattr(struct vop_setattr_args *ap)
 	struct vattr *vap = ap->a_vap;
 	struct myfs_node *fs_node = vp->v_data;
 	Inode *inode = fs_node->inode;
+	int rv;
     
 	journal_entry_t entry;
 	entry.type = TT_CHMOD;
@@ -344,7 +345,9 @@ myfs_vn_setattr(struct vop_setattr_args *ap)
 	entry.chmod.uid = vap->va_uid;
 	entry.chmod.gid = vap->va_gid;
 	initialize_journal_entry(get_disk(), NULL, &entry);
-	return _chmod(get_disk(), NULL, fs_node->relative_path, entry.chmod.mode, entry.chmod.uid, entry.chmod.gid, false);
+	rv = _chmod(get_disk(), NULL, fs_node->relative_path, entry.chmod.mode, entry.chmod.uid, entry.chmod.gid, false);
+	rv = inode_read(get_disk(), NULL, inode->inode_number, inode);
+	return rv;
 }
 
 static int
