@@ -117,7 +117,9 @@ static int
 myfs_vn_write(struct vop_write_args *ap)
 {
 	struct vnode *vp = ap->a_vp;
-	//struct uio *uio = ap->a_uio;
+	struct uio *uio = ap->a_uio;
+	struct myfs_node *fs_node = vp->v_data;
+	Inode *node = fs_node->inode;
 
 	if (vp->v_type == VDIR)
 		return (EISDIR);
@@ -125,8 +127,74 @@ myfs_vn_write(struct vop_write_args *ap)
 	if (vp->v_type != VREG)
 		return (EINVAL);
 
-	/* Write implementation would go here */
-	return (EOPNOTSUPP);
+	int remaining = uio->uio_resid;
+	off_t current_offset = uio->uio_offset;
+	int bytes_written = 0;
+
+	while (remaining > 0) {
+		// Calculate which page we're writing to
+		int page_index = current_offset / USABLE_BLOCK_SIZE;
+		int page_offset = current_offset % USABLE_BLOCK_SIZE;
+
+		// Get the physical page number for this logical page
+		uint64_t pnum = 0;
+        
+		inode_get_block(get_disk(), NULL, node, page_index, &pnum);
+        
+		if (!pnum)
+		{
+			pnum = alloc_page(get_disk(), NULL);
+			if (!pnum) goto exit;
+			// Initialize the new page as a data block
+            		block_type_t *block_type = (block_type_t*)get_block(get_disk(), NULL, node->inode_number, pnum);
+			*block_type = BLOCK_TYPE_DATA;
+			// Clear the rest of the block
+			memset(block_type + 1, 0, BLOCK_SIZE - sizeof(block_type_t));
+        		write_block(get_disk(), NULL, block_type, node->inode_number, pnum);
+			inode_set_block(get_disk(), NULL, node, page_index, pnum);
+			inode_write(get_disk(), NULL, node, false);
+			journal_entry_t entry;
+			entry.type = TT_WRITE;
+			entry.write.inode_number = node->inode_number;
+			entry.write.block_index = page_index;
+			entry.write.physical_block = pnum;
+			entry.write.size = 0;
+			initialize_journal_entry(get_disk(), NULL, &entry);
+		}
+        
+		// Get pointer to the page data
+            	block_type_t *block_type = (block_type_t*)get_block(get_disk(), NULL, node->inode_number, pnum);
+		// For data blocks, we need to skip the block type header
+		char *data_area = (char*)(block_type + 1);
+        
+		// Calculate how much to write to this page
+		int bytes_to_write = USABLE_BLOCK_SIZE - page_offset;
+		if (bytes_to_write > remaining) {
+			bytes_to_write = remaining;
+		}
+        
+		// Copy data from buffer to page
+		//memcpy(data_area + page_offset, buf + bytes_written, bytes_to_write);
+		vn_io_fault_uiomove(data_area + page_offset, bytes_to_write, uio);
+        
+		// Mark the page as dirty since we modified it
+        	write_block(get_disk(), NULL, block_type, node->inode_number, pnum);
+        
+		// Update counters
+		bytes_written += bytes_to_write;
+		remaining -= bytes_to_write;
+		current_offset += bytes_to_write;
+	}
+    
+	// Update file size if we wrote beyond the previous end
+	if (uio->uio_offset + bytes_written > node->size) {
+		node->size = uio->uio_offset + bytes_written;
+		inode_write(get_disk(), NULL, node, false);
+	}
+
+exit:
+    printf("write(%s, %ld bytes, @+%ld) -> %d\n", fs_node->relative_path, uio->uio_resid, uio->uio_offset, bytes_written);
+    return 0;
 }
 
 static int
