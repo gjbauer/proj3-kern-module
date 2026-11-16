@@ -73,6 +73,11 @@ myfs_vn_read(struct vop_read_args *ap)
 		int page_index = current_offset / USABLE_BLOCK_SIZE;
 		int page_offset = current_offset % USABLE_BLOCK_SIZE;
 
+		off_t bytes_left_in_file = node->size - current_offset;
+
+		if (remaining > bytes_left_in_file)
+			remaining = bytes_left_in_file;
+
 		// Get the physical page number for this logical page
 		uint64_t pnum = 0;
 
@@ -100,7 +105,7 @@ myfs_vn_read(struct vop_read_args *ap)
 		}
 
 		// Copy data from page to buffer (after block type header)
-		vn_io_fault_uiomove(data_area, bytes_to_read, uio);
+		vn_io_fault_uiomove(data_area + current_offset, bytes_to_read, uio);
 
 		// Update counters
 		remaining -= bytes_to_read;
@@ -188,7 +193,7 @@ myfs_vn_write(struct vop_write_args *ap)
     
 	// Update file size if we wrote beyond the previous end
 	if (uio->uio_offset + bytes_written > node->size) {
-		node->size = uio->uio_offset + bytes_written;
+		node->size = uio->uio_offset;
 		inode_write(get_disk(), NULL, node, false);
 	}
 
@@ -414,6 +419,8 @@ myfs_vn_getattr(struct vop_getattr_args *ap)
 	vap->va_size = ip->size;
 	vap->va_blocksize = BLOCK_SIZE;
 	vap->va_bytes = ip->size;
+
+	vap->va_flags = 0;
 
 	printf("myfs_getattr: EXIT vp=%p\n", vp);
 
@@ -780,6 +787,37 @@ myfs_reclaim(struct vop_reclaim_args *ap)
 }
 
 static int
+myfs_vn_rename(struct vop_rename_args *ap)
+{
+	struct vnode *fvp = ap->a_fvp, *tdvp = ap->a_tdvp;
+	struct myfs_node *fnode = fvp->v_data, *tnode = tdvp->v_data;
+	struct componentname *cnp = ap->a_tcnp;
+	char *from = fnode->relative_path, *to = NULL;
+	if (strlen(tnode->relative_path) == 1)
+	{
+		to = MALLOC(cnp->cn_namelen + 2);
+		snprintf(to, cnp->cn_namelen + 2, "/%s", cnp->cn_nameptr);
+	}
+	else
+	{
+		to = MALLOC(cnp->cn_namelen + strlen(tnode->relative_path) + 2);
+		snprintf(to, cnp->cn_namelen + strlen(tnode->relative_path) + 2, "%s/%s", tnode->relative_path, cnp->cn_nameptr);
+	}
+
+	journal_entry_t entry;
+	entry.type = TT_RENAME;
+	entry.synced = false;
+	strcpy(entry.rename.from, from);
+	strcpy(entry.rename.to, to);
+	initialize_journal_entry(get_disk(), NULL, &entry);
+
+	int rv = _rename(get_disk(), NULL, from, to, false);
+
+	printf("rename(%s => %s) -> %d\n", from, to, rv);
+	return rv;
+}
+
+static int
 myfs_vn_access(struct vop_access_args *ap)
 {
     printf("myfs_access: ENTER vp=%p mode=0x%x\n",
@@ -808,5 +846,6 @@ struct vop_vector myfs_vnodeops = {
 	.vop_mkdir =		myfs_vn_mkdir,
 	.vop_setattr =		myfs_vn_setattr,
 	.vop_link =		myfs_vn_link,
+	.vop_rename =		myfs_vn_rename,
 };
 VFS_VOP_VECTOR_REGISTER(myfs_vnodeops);

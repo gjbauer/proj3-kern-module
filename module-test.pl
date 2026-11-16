@@ -16,21 +16,47 @@ system("(doas kldload ./myfs.ko.full 2>&1) > /dev/null");
 system("(cc -o mount_myfs mount_myfs.c 2>&1) > /dev/null");
 
 sub mount {
-    system("(doas ./mount_myfs /dev/vtbd0 /mnt 2>&1) >> test.log &");
-    #system("make mount &");
-    sleep 3;
+    my $rc = system(
+        "doas ./mount_myfs /dev/vtbd0 /mnt >> test.log 2>&1"
+    );
+
+    die "Mount failed: $rc" if $rc != 0;
 }
 
 sub unmount {
-    system("(sudo umount /mnt 2>&1) >> test.log");
+    my $rc = system(
+        "doas umount /mnt 2>&1"
+    );
+
+    die "Mount failed: $rc" if $rc != 0;
+}
+=pod
+sub unmount {
+    system("(doas umount /mnt 2>&1) >> test.log");
     sleep 3;
 }
+=cut
 
+=pod
 sub write_text {
     my ($name, $data) = @_;
     open my $fh, ">", "/mnt/$name" or return;
     $fh->say($data);
     close $fh;
+}
+=cut
+
+sub write_text {
+    my ($name, $data) = @_;
+
+    open my $fh, ">", "/mnt/$name"
+        or die "open failed: $!";
+
+    $fh->say($data)
+        or die "write failed: $!";
+
+    close $fh
+        or die "close failed: $!";
 }
 
 sub read_text {
@@ -124,11 +150,11 @@ say "# '$msg2' eq '$msg3'?";
 ok($msg2 eq $msg3, "Read back data2 correctly again.");
 
 system("rm -f /mnt/one.txt");
-$files = `ls mnt`;
+$files = `ls /mnt`;
 ok($files !~ /one\.txt/, "deleted one.txt");
 
 system("mv /mnt/two.txt /mnt/abc.txt");
-$files = `ls mnt`;
+$files = `ls /mnt`;
 ok($files !~ /two\.txt/, "moved two.txt");
 ok($files =~ /abc\.txt/, "have abc.txt");
 

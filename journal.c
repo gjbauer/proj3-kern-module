@@ -61,6 +61,8 @@ void initialize_journal_entry(DiskInterface *disk, cache *cache, journal_entry_t
     
     entry->block_number = journal_block;
 
+    entry->synced = false;
+
     block_type = (block_type_t*)get_block(disk, cache, 0, journal_block);
 
     if (*block_type != BLOCK_TYPE_JOURNAL) {
@@ -86,8 +88,10 @@ void initialize_journal_entry(DiskInterface *disk, cache *cache, journal_entry_t
     superblock_write(disk, cache, &sb, true);
 
     memcpy(prev_entry, entry, sizeof(struct journal_entry_t));
-	write_block(disk, cache, block_type, 0, journal_block);
+    write_block(disk, cache, block_type, 0, journal_block);
+    printf("JOURNAL: before lock\n");
     lock(get_lock());
+    printf("JOURNAL: acquired lock\n");
     disk_write_block(disk, journal_block, block_type);
     unlock(get_lock());
 #ifdef _KERNEL
@@ -221,7 +225,9 @@ clear:
     if (entry->type != TT_UNINITIALIZED)
     {
     	write_block(disk, cache, block_type, 0, entry->block_number);
-    	lock(get_lock());
+    printf("JOURNAL: before lock\n");
+    lock(get_lock());
+    printf("JOURNAL: acquired lock\n");
     	disk_write_block(disk, entry->block_number, block_type);
     	unlock(get_lock());
     }
@@ -258,6 +264,10 @@ void sync_journal(DiskInterface *disk, cache *cache)
         if (*block_type != BLOCK_TYPE_JOURNAL) {
             FPRINTF("ERROR: Block %lu is not a journal block! type=0x%x\n", sb.journal_start + sb.journal_head, *block_type);
             // Don't proceed - journal is corrupted
+#ifdef _KERNEL
+		FREE(block_type);
+#endif
+		decrease_pin_count(disk, cache, 0, sb.journal_start + sb.journal_head );
             return;
         }
 
@@ -266,11 +276,6 @@ void sync_journal(DiskInterface *disk, cache *cache)
             sync_entry(disk, cache, prev_entry);
         }
         
-#ifdef _KERNEL
-		FREE(block_type);
-#endif
-        decrease_pin_count(disk, cache, 0, sb.journal_start + sb.journal_head );
-
         if (sb.journal_head == ( calculate_journal_size(&sb) - 2 ) ) sb.journal_head = 0;
         else sb.journal_head++;
         superblock_write(disk, cache, &sb, true);

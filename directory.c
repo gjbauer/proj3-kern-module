@@ -39,13 +39,14 @@ int directory_add_entry(DiskInterface* disk, cache *cache, const char *path, con
                 block_type = get_block(disk, cache, pair->inode_number, block);
                 *block_type = BLOCK_TYPE_DATA;
                 inode_write(disk, cache, &node, write_through);
-                journal_entry_t entry;
-                entry.type = TT_WRITE;
-                entry.write.inode_number = node.inode_number;
-                entry.write.block_index = i;
-                entry.write.physical_block = block;
+                journal_entry_t *entry = MALLOC(sizeof(struct journal_entry_t));
+                entry->type = TT_WRITE;
+                entry->write.inode_number = node.inode_number;
+                entry->write.block_index = i;
+                entry->write.physical_block = block;
                 printf("WRITE to directory block # %lu\n", block);
-                initialize_journal_entry(disk, cache, &entry);
+                initialize_journal_entry(disk, cache, entry);
+		FREE(entry);
                 if (0 == i)
                 {
                     db = (DirectoryBlock*) ( block_type + 1 );

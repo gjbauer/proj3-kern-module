@@ -133,6 +133,8 @@ myfs_vfs_mount(struct mount *mp)
 	mp->mnt_stat.f_bsize  = BLOCK_SIZE;
 	mp->mnt_stat.f_iosize = USABLE_BLOCK_SIZE;
 	mp->mnt_data = mntdata;
+
+	sync_journal(get_disk(), NULL);
 	
 	printf("myfs: mounted successfully\n");
 	return (0);
@@ -141,6 +143,8 @@ myfs_vfs_mount(struct mount *mp)
 static int
 myfs_vfs_unmount(struct mount *mp, int mntflags)
 {
+	mark_journal_synced(get_disk(), NULL);
+	
 	struct myfs_mount *mntdata = mp->mnt_data;
 	int error, flags = 0;
 
