@@ -179,7 +179,6 @@ myfs_vn_write(struct vop_write_args *ap)
 		}
         
 		// Copy data from buffer to page
-		//memcpy(data_area + page_offset, buf + bytes_written, bytes_to_write);
 		vn_io_fault_uiomove(data_area + page_offset, bytes_to_write, uio);
         
 		// Mark the page as dirty since we modified it
@@ -241,7 +240,9 @@ myfs_vn_create(struct vop_create_args *ap)
 	rv = _mknod(get_disk(), NULL, relative_path, entry->mknod.mode, 0, false, &entry->mknod.inode_number);
 	initialize_journal_entry(get_disk(), NULL, entry);
 	rv = VFS_VGET(dvp->v_mount, entry->mknod.inode_number, LK_EXCLUSIVE | LK_RETRY, ap->a_vpp);
-	FREE(relative_path);
+	struct vnode *vp = *ap->a_vpp;
+	fs_node = vp->v_data;
+	fs_node->relative_path = relative_path;
 	FREE(entry);
 
 	return rv;
@@ -285,9 +286,11 @@ myfs_vn_mknod(struct vop_mknod_args *ap)
 	entry.mknod.inode_number = 0;
 	rv = _mknod(get_disk(), NULL, relative_path, entry.mknod.mode, 0, false, &entry.mknod.inode_number);
 	initialize_journal_entry(get_disk(), NULL, &entry);
-	FREE(relative_path);
 
 	rv = VFS_VGET(ap->a_dvp->v_mount, entry.mknod.inode_number, LK_EXCLUSIVE | LK_RETRY, vpp);
+	struct vnode *vp = *ap->a_vpp;
+	fs_node = vp->v_data;
+	fs_node->relative_path = relative_path;
 	if (rv) {
 		*vpp = NULL;
 		return (rv);
@@ -306,7 +309,9 @@ myfs_vn_remove(struct vop_remove_args * ap)
 	entry.synced = false;
 	strcpy(entry.unlink.path, fs_node->relative_path);
 	initialize_journal_entry(get_disk(), NULL, &entry);
-	return _unlink(get_disk(), NULL, fs_node->relative_path, false);
+	int rv = _unlink(get_disk(), NULL, fs_node->relative_path, false);
+	vgone(vp);
+	return rv;
 }
 
 static int
@@ -406,6 +411,19 @@ myfs_vn_getattr(struct vop_getattr_args *ap)
 
 	printf("myfs_getattr: ENTER vp=%p thread=%p\n",
 		vp, curthread);
+	/*inode_read(get_disk(), NULL, ip->inode_number, ip);
+	if (ip->mode & S_IFMT) {
+		switch (ip->mode & S_IFMT) {
+			case S_IFDIR: vp->v_type = VDIR; break;
+			case S_IFREG: vp->v_type = VREG; break;
+			case S_IFLNK: vp->v_type = VLNK; break;
+			case S_IFCHR: vp->v_type = VCHR; break;
+			case S_IFBLK: vp->v_type = VBLK; break;
+			case S_IFIFO: vp->v_type = VFIFO; break;
+			case S_IFSOCK: vp->v_type = VSOCK; break;
+			default: vp->v_type = VNON; break;
+		}
+	}*/
 
 	/* Return default attributes */
 	VATTR_NULL(vap);
@@ -789,10 +807,16 @@ myfs_reclaim(struct vop_reclaim_args *ap)
 static int
 myfs_vn_rename(struct vop_rename_args *ap)
 {
-	struct vnode *fvp = ap->a_fvp, *tdvp = ap->a_tdvp;
+	struct vnode *fdvp = ap->a_fdvp, *fvp = ap->a_fvp, *tdvp = ap->a_tdvp, *tvp = ap->a_tvp;
 	struct myfs_node *fnode = fvp->v_data, *tnode = tdvp->v_data;
 	struct componentname *cnp = ap->a_tcnp;
 	char *from = fnode->relative_path, *to = NULL;
+
+	if (fdvp != tdvp) {
+		vn_lock(fdvp, LK_EXCLUSIVE | LK_RETRY);
+	}
+	vn_lock(fvp, LK_EXCLUSIVE | LK_RETRY);
+
 	if (strlen(tnode->relative_path) == 1)
 	{
 		to = MALLOC(cnp->cn_namelen + 2);
@@ -813,7 +837,15 @@ myfs_vn_rename(struct vop_rename_args *ap)
 
 	int rv = _rename(get_disk(), NULL, from, to, false);
 
-	VOP_UNLOCK(tdvp);
+	VOP_UNLOCK(fvp);
+	if (fdvp != tdvp)
+		VOP_UNLOCK(fdvp);
+
+	if (tvp != NULL)
+		vput(tvp);
+	vput(tdvp);
+	vrele(fvp);
+	vrele(fdvp);
 
 	printf("rename(%s => %s) -> %d\n", from, to, rv);
 	return rv;

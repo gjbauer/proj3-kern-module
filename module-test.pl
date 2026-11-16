@@ -151,7 +151,7 @@ system("mv /mnt/two.txt /mnt/abc.txt");
 $files = `ls /mnt`;
 ok($files !~ /two\.txt/, "moved two.txt");
 ok($files =~ /abc\.txt/, "have abc.txt");
-=pod
+
 my $msg4 = read_text("abc.txt");
 say "# '$msg2' eq '$msg4'?";
 ok($msg2 eq $msg4, "Read back data after rename.");
@@ -169,7 +169,7 @@ say "# '$msg2' eq '$msg6'?";
 ok($msg2 eq $msg6, "Read back data after other link deleted.");
 
 system("mkdir /mnt/foo");
-ok(-d "mnt/foo", "Made a directory");
+ok(-d "/mnt/foo", "Made a directory");
 
 system("cp /mnt/def.txt /mnt/foo/abc.txt");
 my $msg7 = read_text("foo/abc.txt");
@@ -218,7 +218,7 @@ mount();
 
 my $mm = `ls /mnt/numbers | wc -l`;
 ok($mm == 150, "deleted 150 files");
-=cut
+
 
 unmount();
 
