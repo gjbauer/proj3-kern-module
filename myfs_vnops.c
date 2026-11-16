@@ -411,19 +411,6 @@ myfs_vn_getattr(struct vop_getattr_args *ap)
 
 	printf("myfs_getattr: ENTER vp=%p thread=%p\n",
 		vp, curthread);
-	/*inode_read(get_disk(), NULL, ip->inode_number, ip);
-	if (ip->mode & S_IFMT) {
-		switch (ip->mode & S_IFMT) {
-			case S_IFDIR: vp->v_type = VDIR; break;
-			case S_IFREG: vp->v_type = VREG; break;
-			case S_IFLNK: vp->v_type = VLNK; break;
-			case S_IFCHR: vp->v_type = VCHR; break;
-			case S_IFBLK: vp->v_type = VBLK; break;
-			case S_IFIFO: vp->v_type = VFIFO; break;
-			case S_IFSOCK: vp->v_type = VSOCK; break;
-			default: vp->v_type = VNON; break;
-		}
-	}*/
 
 	/* Return default attributes */
 	VATTR_NULL(vap);
