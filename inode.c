@@ -1,6 +1,13 @@
 #include "inode.h"
 #include "superblock.h"
+#ifdef __linux__
+#include <bsd/stdlib.h>
+#endif
+#ifndef _KERNEL
+#include <stdlib.h>
+#else
 #include "myfs.h"
+#endif
 #include <string.h>
 #include "disk.h"
 #include "lock.h"
