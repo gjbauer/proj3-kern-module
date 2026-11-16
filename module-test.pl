@@ -30,12 +30,6 @@ sub unmount {
 
     die "Mount failed: $rc" if $rc != 0;
 }
-=pod
-sub unmount {
-    system("(doas umount /mnt 2>&1) >> test.log");
-    sleep 3;
-}
-=cut
 
 =pod
 sub write_text {
@@ -157,7 +151,7 @@ system("mv /mnt/two.txt /mnt/abc.txt");
 $files = `ls /mnt`;
 ok($files !~ /two\.txt/, "moved two.txt");
 ok($files =~ /abc\.txt/, "have abc.txt");
-
+=pod
 my $msg4 = read_text("abc.txt");
 say "# '$msg2' eq '$msg4'?";
 ok($msg2 eq $msg4, "Read back data after rename.");
@@ -224,7 +218,10 @@ mount();
 
 my $mm = `ls /mnt/numbers | wc -l`;
 ok($mm == 150, "deleted 150 files");
+=cut
 
 unmount();
+
+system("doas kldunload myfs.ko.full");
 
 system("(make clean 2>&1) > /dev/null");

@@ -577,7 +577,7 @@ myfs_vn_lookup(struct vop_lookup_args *ap)
 	if (!pair->inode_number) {
 		FREE(relative_path);
 
-		if (cnp->cn_nameiop == CREATE &&
+		if ( ( cnp->cn_nameiop == CREATE || cnp->cn_nameiop == RENAME) &&
 		(cnp->cn_flags & ISLASTCN)) {
 		printf("myfs_lookup: missing final component, "
 			"returning EJUSTRETURN\n");
@@ -812,6 +812,8 @@ myfs_vn_rename(struct vop_rename_args *ap)
 	initialize_journal_entry(get_disk(), NULL, &entry);
 
 	int rv = _rename(get_disk(), NULL, from, to, false);
+
+	VOP_UNLOCK(tdvp);
 
 	printf("rename(%s => %s) -> %d\n", from, to, rv);
 	return rv;
