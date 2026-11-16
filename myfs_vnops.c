@@ -105,7 +105,7 @@ myfs_vn_read(struct vop_read_args *ap)
 		}
 
 		// Copy data from page to buffer (after block type header)
-		vn_io_fault_uiomove(data_area + current_offset, bytes_to_read, uio);
+		vn_io_fault_uiomove(data_area + page_offset, bytes_to_read, uio);
 
 		// Update counters
 		remaining -= bytes_to_read;
@@ -191,7 +191,7 @@ myfs_vn_write(struct vop_write_args *ap)
 	}
     
 	// Update file size if we wrote beyond the previous end
-	if (uio->uio_offset + bytes_written > node->size) {
+	if (uio->uio_offset > node->size) {
 		node->size = uio->uio_offset;
 		inode_write(get_disk(), NULL, node, false);
 	}
